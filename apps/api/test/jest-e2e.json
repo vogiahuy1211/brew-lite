@@ -1,0 +1,10 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": "test/.*\\.e2e-spec\\.ts$",
+  "transformIgnorePatterns": ["[\\\\/]node_modules[\\\\/](?!(?:@nestjs|uuid)[\\\\/])"],
+  "transform": {
+    "^.+\\.(t|j)s$": "<rootDir>/test/jest-transformer.cjs"
+  }
+}
