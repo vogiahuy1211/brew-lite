@@ -3,12 +3,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Trash2, Plus, Minus, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, Minus, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useCartStore } from '@/store/cart';
+import { checkCartLimits } from '@/services/api';
 
 export default function CartPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [limits, setLimits] = useState<
+    Record<string, { canIncrease: boolean; maxQty: number; limitingIngredient?: string }>
+  >({});
+  const [limitWarning, setLimitWarning] = useState<string | null>(null);
 
   const items = useCartStore((state) => state.items);
   const updateQty = useCartStore((state) => state.updateQty);
@@ -19,7 +24,46 @@ export default function CartPage() {
 
   useEffect(() => {
     setMounted(true);
+    try { sessionStorage.removeItem('brewlite_checkout_attempt'); } catch {}
   }, []);
+
+  useEffect(() => {
+    if (!mounted || items.length === 0) {
+      setLimits({});
+      return;
+    }
+
+    checkCartLimits(
+      items.map((i) => ({
+        id: i.id,
+        productId: i.productId,
+        size: i.size,
+        qty: i.qty,
+        toppingIds: i.toppings.map((t) => t.id),
+      }))
+    )
+      .then((res) => {
+        if (res && res.limits) {
+          setLimits(res.limits);
+        }
+      })
+      .catch((err) => {
+        console.error('Lỗi kiểm tra giới hạn tồn kho nguyên liệu:', err);
+      });
+  }, [items, mounted]);
+
+  const handleIncreaseQty = (item: any) => {
+    const itemLimit = limits[item.id];
+    if (itemLimit && !itemLimit.canIncrease) {
+      setLimitWarning(
+        `Không thể tăng thêm: Nguyên liệu "${itemLimit.limitingIngredient || 'trong kho'}" chỉ còn đủ để pha tối đa ${item.qty} ly!`
+      );
+      setTimeout(() => setLimitWarning(null), 4000);
+      return;
+    }
+    setLimitWarning(null);
+    updateQty(item.id, 1);
+  };
 
   if (!mounted) return null;
 
@@ -48,6 +92,13 @@ export default function CartPage() {
       </div>
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-3">
+        {limitWarning && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 px-3.5 py-2.5 rounded-2xl text-xs flex items-center gap-2 shadow-sm animate-in fade-in">
+            <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+            <span className="font-medium">{limitWarning}</span>
+          </div>
+        )}
+
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <span className="text-6xl mb-3">🛒</span>
@@ -65,52 +116,78 @@ export default function CartPage() {
         ) : (
           <>
             <div className="space-y-3">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3"
-                >
-                  <div className="flex-1">
-                    <h4 className="font-bold text-sm text-gray-900 leading-tight">{item.name}</h4>
-                    <p className="text-xs font-semibold text-amber-700 mt-0.5">Size {item.size}</p>
-                    {item.toppings.length > 0 && (
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        Topping: {item.toppings.map((t) => t.name).join(', ')}
-                      </p>
-                    )}
-                    <p className="text-sm font-extrabold text-gray-900 mt-2">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                        item.price * item.qty
+              {items.map((item) => {
+                const itemLimit = limits[item.id];
+                const isMaxReached = itemLimit && !itemLimit.canIncrease;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3"
+                  >
+                    <div className="flex-1">
+                      <h4 className="font-bold text-sm text-gray-900 leading-tight">{item.name}</h4>
+                      <p className="text-xs font-semibold text-amber-700 mt-0.5">Size {item.size}</p>
+                      {item.toppings.length > 0 && (
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Topping: {item.toppings.map((t) => t.name).join(', ')}
+                        </p>
                       )}
-                    </p>
-                  </div>
+                      <p className="text-sm font-extrabold text-gray-900 mt-2">
+                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                          item.price * item.qty
+                        )}
+                      </p>
 
-                  <div className="flex flex-col items-end justify-between h-full gap-3">
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      {isMaxReached && (
+                        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-lg mt-1.5 font-medium inline-block">
+                          ⚠️ Đạt tối đa ({item.qty} ly) do hết nguyên liệu &quot;{itemLimit.limitingIngredient}&quot;
+                        </p>
+                      )}
+                    </div>
 
-                    <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-2 py-1">
+                    <div className="flex flex-col items-end justify-between h-full gap-3">
                       <button
-                        onClick={() => updateQty(item.id, -1)}
-                        className="text-gray-600 hover:text-black active:scale-95"
+                        onClick={() => removeItem(item.id)}
+                        className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                        title="Xóa món"
                       >
-                        <Minus size={13} />
+                        <Trash2 size={16} />
                       </button>
-                      <span className="text-xs font-bold w-4 text-center">{item.qty}</span>
-                      <button
-                        onClick={() => updateQty(item.id, 1)}
-                        className="text-gray-600 hover:text-black active:scale-95"
-                      >
-                        <Plus size={13} />
-                      </button>
+
+                      <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-2 py-1">
+                        <button
+                          onClick={() => {
+                            setLimitWarning(null);
+                            updateQty(item.id, -1);
+                          }}
+                          className="text-gray-600 hover:text-black active:scale-95"
+                          title="Giảm số lượng"
+                        >
+                          <Minus size={13} />
+                        </button>
+                        <span className="text-xs font-bold w-4 text-center">{item.qty}</span>
+                        <button
+                          disabled={isMaxReached}
+                          onClick={() => handleIncreaseQty(item)}
+                          className={`active:scale-95 transition-colors ${
+                            isMaxReached
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : 'text-gray-600 hover:text-black'
+                          }`}
+                          title={
+                            isMaxReached
+                              ? `Đã hết nguyên liệu (${itemLimit.limitingIngredient})`
+                              : 'Tăng số lượng'
+                          }
+                        >
+                          <Plus size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2 mt-4 text-xs">
@@ -139,17 +216,18 @@ export default function CartPage() {
           <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] text-gray-500">Tổng thanh toán</p>
-              <p className="text-base font-black text-amber-600">
+              <p className="text-lg font-black text-amber-600">
                 {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalPrice)}
               </p>
             </div>
-            <button
-              onClick={() => router.push('/checkout')}
-              className="py-3 px-6 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold rounded-2xl text-sm transition-all shadow-md flex items-center gap-1.5"
+            <Link
+              href="/checkout"
+              onClick={() => { try { sessionStorage.removeItem('brewlite_checkout_attempt'); } catch {} }}
+              className="py-3 px-6 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold rounded-2xl text-sm flex items-center gap-1.5 transition-all shadow-md"
             >
-              Tiến hành đặt hàng
+              <span>Thanh toán ngay</span>
               <ArrowRight size={16} />
-            </button>
+            </Link>
           </div>
         </div>
       )}
