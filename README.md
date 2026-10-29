@@ -1,128 +1,192 @@
-# BrewLite ☕ — Cashless Coffee Ordering System
+# Huong Dan Cai Dat Va Khoi Chay Do An BrewLite
 
-> **Hệ thống đặt cà phê và thanh toán không dùng tiền mặt**  
-> Đồ án môn học: **Công nghệ Phần mềm (Software Engineering)** — Đại học Sài Gòn (SGU)  
-> Mô hình phát triển: **Agile Scrum (Sprint 1, Sprint 2, Sprint 3: 13/10/2026 – 30/10/2026)**  
-> Repository chính thức: [https://github.com/vogiahuy1211/brew-lite](https://github.com/vogiahuy1211/brew-lite)
+Tai lieu nay huong dan chi tiet cac buoc cai dat moi truong, thiet lap co so du lieu, khoi chay ung dung va chay bo kiem thu cho do an BrewLite.
 
 ---
 
-## 👥 THÀNH VIÊN NHÓM VÀ PHÂN CÔNG TRÁCH NHIỆM
+## 1. Yeu Cau He Thong
 
-| STT | Họ và tên | GitHub Username | Vai trò chuyên môn | Nhiệm vụ chính trong đồ án |
-| :---: | :--- | :--- | :--- | :--- |
-| **1** | **Võ Gia Huy** | [@vogiahuy1211](https://github.com/vogiahuy1211) | **Tech Lead & Backend Core** | • Khởi tạo kiến trúc Monorepo, CSDL PostgreSQL, Docker, CI Pipeline.<br>• Phụ trách API Products (`/products`), Lõi `OrderStateMachine` & Khóa lạc quan (Optimistic Concurrency Locking).<br>• Bộ E2E Tests Task 10.<br>• **Reviewer & Merger:** Duyệt và thực hiện toàn bộ Merge commits vào `main`. |
-| **2** | **Phạm Thanh Hải** | [@Naiiiiiiiiii](https://github.com/Naiiiiiiiiii) | **Thuần Backend Dev**<br>*(100% Backend)* | • Module Xác thực `AuthModule` (bcrypt, JWT Passport, Auth Guards, `/auth/register`, `/auth/login`).<br>• Module Đơn hàng `OrdersModule` (API tạo đơn `POST /orders`, DTO validation, DB transaction).<br>• Module Thanh toán `PaymentsModule` (Mock Ví/Thẻ, tích điểm Loyalty, Idempotency Key chống trừ tiền 2 lần).<br>• API Cập nhật trạng thái & Hủy đơn hàng (`PATCH /orders/:id/status` sang `CANCELLED`). |
-| **3** | **Huỳnh Tín Đạt** | [@tindat1442-cpu](https://github.com/tindat1442-cpu) | **Thuần Frontend Dev 1**<br>*(100% Frontend)* | • Giao diện Trang chủ Menu (`/`), Component thẻ món `ProductCard.tsx`, thanh tìm kiếm và bộ lọc danh mục.<br>• Màn hình Chi tiết món (`/products/[id]`), tùy chọn Size S/M/L, chọn Toppings và tính giá động thời gian thực.<br>• Tối ưu hóa ảnh sản phẩm cục bộ offline, responsive mobile-first.<br>• Lập Ma trận truy vết (Traceability Matrix) & Báo cáo Sprint Retrospective. |
-| **4** | **Thiều An** | [@bizangvn-ops](https://github.com/bizangvn-ops) | **Thuần Frontend Dev 2**<br>*(100% Frontend)* | • Giỏ hàng lưu bằng Zustand Store (`cart.ts`) & Giao diện Giỏ hàng (`/cart`) kèm Badge số lượng trên Header.<br>• Giao diện trang Thanh toán Cashless Checkout (`/checkout`), nhập mã ưu đãi, chọn phương thức thanh toán.<br>• Giao diện Xác nhận đơn (`/orders/[id]`), Lịch sử đơn (`/orders`).<br>• Chức năng và nút bấm Hủy đơn hàng trực tiếp trên giao diện lịch sử. |
-| **5** | **Hồ Xuân Lý** | [@XuanLy147](https://github.com/XuanLy147) | **Frontend Lead / Session** | • Xây dựng hệ thống Quản lý phiên làm việc & Bảo mật Token JWT (`session.ts`, `SessionBoundary.tsx`).<br>• Giao diện Form Đăng nhập & Đăng ký tài khoản (`/login`) có kiểm tra mật khẩu khớp.<br>• Component `AccountMenu` (xem điểm Loyalty, logout) và `Footer` thanh điều hướng đáy màn hình.<br>• Viết bộ **89 bài test tích hợp Frontend** tự động (`apps/web/tests/integration.test.mjs`). |
+May tinh can cai dat truoc cac cong cu sau:
 
----
-
-## 🛠️ TECH STACK
-
-| Tầng hệ thống | Công nghệ sử dụng | Mục đích |
-| :--- | :--- | :--- |
-| **Frontend** | **Next.js 16** (Turbopack, TypeScript), **TailwindCSS**, **Zustand** | Giao diện mobile-first, quản lý giỏ hàng, SSR/SSG tối ưu tốc độ |
-| **Backend** | **NestJS 12** (TypeScript), **Passport-JWT**, **class-validator** | Kiến trúc module hóa, bảo mật API, xử lý nghiệp vụ đơn & thanh toán |
-| **Database** | **PostgreSQL 16/17**, **Prisma ORM** | CSDL quan hệ ACID, hỗ trợ Transaction, Locking và Seed mẫu |
-| **Kiểm thử** | **Jest**, **Supertest**, **Node Test Runner** | Unit tests, E2E Concurrency tests, Frontend Integration tests |
-| **DevOps** | **Docker**, **Docker Compose**, **GitHub Actions** | Container hóa đa dịch vụ và CI/CD tự động kiểm thử |
+1. Node.js phien ban 18 tro len (khuyen nghi phien ban 20 LTS hoac 22 LTS).
+2. Git de quan ly ma nguon.
+3. PostgreSQL phien ban 15 tro len (dang chay tai cong mac dinh 5432).
+4. Docker Desktop (tuy chon, neu muon chay bang Docker Compose).
 
 ---
 
-## 🚀 HƯỚNG DẪN KHỞI CHẠY ĐỒ ÁN (HOW TO RUN)
+## 2. Thiet Lap Co So Du Lieu PostgreSQL
 
-### 📌 Yêu cầu môi trường
-- **Node.js:** Phiên bản 18 trở lên (khuyên dùng Node 20 hoặc 22/24).
-- **PostgreSQL:** Đang chạy tại cổng `5432` (database: `brewlite_db`).
+Buoc 1: Mo cong cu quan ly PostgreSQL (pgAdmin hoac psql qua Command Prompt).
+
+Buoc 2: Tao mot co so du lieu moi voi ten:
+```sql
+CREATE DATABASE brewlite_db;
+```
+
+Buoc 3: Kiem tra thong tin ket noi den CSDL PostgreSQL (tai khoan, mat khau, cong ket noi).
 
 ---
 
-### CÁCH 1: CHẠY TRỰC TIẾP (KHUYÊN DÙNG ĐỂ DEV / TEST)
+## 3. Cau Hinh Bien Moi Truong
 
-Cần mở **2 cửa sổ Terminal (PowerShell)**:
-
-#### 🔹 Cửa sổ 1: Khởi động Backend (Cổng 4000)
-```powershell
-# 1. Di chuyển vào thư mục backend
+Buoc 1: Di chuyen vao thu muc backend de tao file cau hinh bien moi truong:
+```bash
 cd apps/api
+cp .env.example .env
+```
+(Tren he dieu hanh Windows neu khong co lenh cp, sao chep file `.env.example` thanh `.env`).
 
-# 2. Cài đặt thư viện (nếu chưa cài)
+Buoc 2: Mo file `apps/api/.env` va chinh sua chuoi ket noi co so du lieu phu hop voi tai khoan PostgreSQL cua may ban:
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/brewlite_db?schema=public"
+JWT_SECRET="brewlite-jwt-secret-key-development"
+PORT=4000
+NODE_ENV="development"
+VNP_TMN_CODE="XG4B237X"
+VNP_HASH_SECRET="Y20A3M6YV8G5S2P62X4S6B3L8J2V0H4P"
+VNP_URL="https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
+VNP_RETURN_URL="http://localhost:3000/orders/vnpay-return"
+```
+
+Buoc 3: Di chuyen vao thu muc frontend de kiem tra file cau hinh:
+```bash
+cd ../../apps/web
+```
+Tao file `apps/web/.env.local` (neu can) voi noi dung:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000/api
+```
+
+---
+
+## 4. Huong Dan Cai Dat Va Chay Truc Tiep (Khuyen Nghi)
+
+De chay he thong, can mo hai cua so dong lenh (Terminal hoac PowerShell) rieng biet.
+
+### Cua so 1: Khoi dong Backend API
+
+Buoc 1: Di chuyen vao thu muc `apps/api`:
+```bash
+cd apps/api
+```
+
+Buoc 2: Cai dat cac thu vien phu thuoc:
+```bash
 npm install --legacy-peer-deps
+```
 
-# 3. Đồng bộ schema và seed 15 sản phẩm mẫu
+Buoc 3: Tao ma nguon Prisma Client tu schema:
+```bash
 npx prisma generate
-npm run db:seed
+```
 
-# 4. Khởi chạy server Backend
+Buoc 4: Day cau truc bang vao co so du lieu:
+```bash
+npx prisma db push
+```
+
+Buoc 5: Khoi tao du lieu mau (15 san pham, topping, nguyen lieu kho va cong thuc):
+```bash
+npm run db:seed
+```
+
+Buoc 6: Khoi chay may chu Backend o che do phat trien:
+```bash
 npm run start:dev
 ```
-> Server API sẽ sẵn sàng tại: **`http://localhost:4000/api`**  
-> Kiểm tra trạng thái: **`http://localhost:4000/api/health`** *(kết quả: `{"status": "ok", "database": "connected"}`)*
+
+Sau khi khoi dong thanh cong:
+- Dia chi goc cua API: http://localhost:4000/api
+- Kiem tra ket noi: http://localhost:4000/api/health
 
 ---
 
-#### 🔹 Cửa sổ 2: Khởi động Frontend Web (Cổng 3000)
-```powershell
-# 1. Di chuyển vào thư mục frontend
+### Cua so 2: Khoi dong Frontend Web
+
+Buoc 1: Mo cua so dong lenh thu hai va di chuyen vao thu muc `apps/web`:
+```bash
 cd apps/web
-
-# 2. Cài đặt thư viện (nếu chưa cài)
-npm install
-
-# 3. Khởi chạy giao diện Next.js
-npx next dev -H 0.0.0.0 -p 3000
 ```
-> **Địa chỉ truy cập:**  
-> • Trên máy tính: **`http://localhost:3000`**  
-> • Trên điện thoại di động (cùng mạng WiFi): **`http://<IP_MÁY_BẠN>:3000`** *(ví dụ: `http://192.168.1.21:3000`)*
+
+Buoc 2: Cai dat cac thu vien phu thuoc:
+```bash
+npm install
+```
+
+Buoc 3: Khoi chay may chu Next.js:
+```bash
+npm run dev
+```
+(Hoac lenh: `npx next dev -H 0.0.0.0 -p 3000` neu muon cho phep thiet bi dien thoai trong cung mang WiFi truy cap).
+
+Sau khi khoi dong thanh cong:
+- Truy cap giao dien tren may tinh tai: http://localhost:3000
+- Truy cap tu dien thoai (cung mang WiFi): http://dia-chi-ip-may-tinh:3000
 
 ---
 
-### CÁCH 2: CHẠY BẰNG DOCKER COMPOSE (1 LỆNH TỰ ĐỘNG)
-Nếu máy bạn đã cài sẵn Docker Desktop:
-```powershell
-# Khởi động cùng lúc cả PostgreSQL, NestJS Backend và Next.js Frontend
+## 5. Huong Dan Chay Bang Docker Compose (Tuy Chon)
+
+Neu may tinh da cai dat Docker Desktop va khong muon cai dat PostgreSQL rieng, co the su dung Docker Compose:
+
+Buoc 1: Mo cua so dong lenh tai thu muc goc cua do an (`brewlite`).
+
+Buoc 2: Chay lenh build va khoi dong toan bo cac container:
+```bash
 docker compose up -d --build
 ```
-> Truy cập: Web `http://localhost:3000` | API `http://localhost:4000/api`
+
+Buoc 3: Chay seed du lieu mau ben trong container backend:
+```bash
+docker compose exec api npm run db:seed
+```
+
+Buoc 4: Mo trinh duyet va truy cap http://localhost:3000.
+
+Khi muon dung he thong:
+```bash
+docker compose down
+```
 
 ---
 
-## 🧪 HƯỚNG DẪN CHẠY KIỂM THỬ (TEST SUITE)
+## 6. Huong Dan Chay Kiem Thu (Test Suite)
 
-Dự án trang bị hệ thống kiểm thử tự động toàn diện đạt tỷ lệ pass 100%:
+Do an bao gom day du cac bo test tu backend den frontend de kiem tra tinh dung dan cua ma nguon.
 
-1. **Unit Tests Backend (17/17 tests pass):**
-   ```powershell
-   cd apps/api
-   npm test
-   ```
-2. **E2E Integration Tests Backend — Task 10 (5/5 tests pass):**
-   *(Kiểm tra Idempotency Key, Khóa lạc quan chống bán vượt tồn kho và Order State Machine)*
-   ```powershell
-   cd apps/api
-   npm run test:e2e
-   ```
-3. **Frontend Integration Tests (89/89 tests pass):**
-   *(Kiểm thử luồng Session, Token lifecycle, Auth, Giỏ hàng và Checkout)*
-   ```powershell
-   cd apps/web
-   node tests/integration.test.mjs
-   ```
+### 1. Chay Unit Test Backend
+Kiem tra logic cua cac service san pham, cong thuc va bo may chuyen trang thai don hang:
+```bash
+cd apps/api
+npm test
+```
+
+### 2. Chay E2E Test Backend
+Kiem tra tinh dong thoi, khoa lac quan (OCC) chong ban vuot ton kho va tinh bat bien Idempotency:
+```bash
+cd apps/api
+npm run test:e2e
+```
+
+### 3. Chay Integration Test Frontend
+Kiem tra toan bo 89 ca kiem thu tich hop cua luong xac thuc, quan ly phien dang nhap, gio hang va thanh toan:
+```bash
+cd apps/web
+node tests/integration.test.mjs
+```
 
 ---
 
-## 📚 TÀI LIỆU THIẾT KẾ & ĐẶC TẢ HỆ THỐNG
+## 7. Tai Khoan Dang Nhap Mau
 
-| Nhóm tài liệu | Đường dẫn chi tiết | Nội dung |
-| :--- | :--- | :--- |
-| **Kế hoạch & Commit** | [docs/task-assignment-and-commit-schedule.md](docs/task-assignment-and-commit-schedule.md) | Bảng phân công chi tiết 68 commits theo ngày giờ của 5 thành viên |
-| **Bản Word nộp bài** | [docs/KE_HOACH_PHAN_CONG_66_COMMITS_BREWLITE.docx](docs/KE_HOACH_PHAN_CONG_66_COMMITS_BREWLITE.docx) | Bản Word định dạng chuyên nghiệp phục vụ nộp báo cáo môn học |
-| **Đặc tả Yêu cầu (SRS)** | [docs/requirements/srs.md](docs/requirements/srs.md) | Đặc tả 8 yêu cầu chức năng (FR-01..08), 5 phi chức năng (NFR), MoSCoW |
-| **Use Case Thanh toán** | [docs/requirements/use-cases/checkout.md](docs/requirements/use-cases/checkout.md) | Kịch bản chi tiết luồng Checkout thanh toán không dùng tiền mặt |
-| **Sơ đồ UML** | [docs/diagrams/](docs/diagrams/) | Sơ đồ Activity, Sequence thanh toán, Sơ đồ lớp miền Class Domain |
-| **Kiến trúc & ADRs** | [docs/architecture/](docs/architecture/) | Kiến trúc tổng quan, 5 quyết định kiến trúc ADR-001 đến ADR-005 |
-| **Ma trận Truy vết** | [docs/traceability-matrix.md](docs/traceability-matrix.md) | Ánh xạ yêu cầu FR với modules, test cases và kết quả nghiệm thu |
-| **Sprint Retrospective** | [docs/sprint-retrospective.md](docs/sprint-retrospective.md) | Biên bản họp cải tiến qua từng Sprint theo mô hình Agile Scrum |
+De trai nghiem cac tinh nang cua he thong, co the su dung cac tai khoan sau hoac dang ky tai khoan moi tren giao dien:
+
+1. Tai khoan Khach hang:
+   - Email: customer@brewlite.vn
+   - Mat khau: 123456
+
+2. Tai khoan Quan tri vien (Admin):
+   - Email: admin@brewlite.vn
+   - Mat khau: admin123
+   - Trang quan tri: http://localhost:3000/admin (quan ly don hang, ton kho nguyen lieu, cong thuc pha che).
