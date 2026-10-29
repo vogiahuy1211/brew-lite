@@ -7,7 +7,7 @@ export type CheckoutAttempt = {
   sessionId: string;
   cartSignature: string;
   order: { items: { productId: string; size: string; qty: number; toppingIds: string[] }[]; promoCode?: string };
-  payment: { orderId?: string; idempotencyKey: string; method: 'WALLET' | 'CARD' };
+  payment: { orderId?: string; idempotencyKey: string; method: 'WALLET' | 'CARD' | 'VNPAY' };
   amount?: number;
   phase: 'creating-order' | 'paying' | 'unconfirmed' | 'paid' | 'failed';
 };
@@ -48,4 +48,10 @@ export function finishCheckoutAttempt(attempt: CheckoutAttempt, phase: 'paid' | 
     updateCheckoutAttempt(attempt, { ...attempt, phase });
     if (phase === 'paid' && ownsCheckoutAttempt(attempt)) sessionStorage.removeItem(ATTEMPT_KEY);
   } catch { /* Bản ghi cũ chặn POST khi tải lại trang; không bao giờ tự gửi lại. */ }
+}
+
+export function clearCheckoutAttempt() {
+  try {
+    sessionStorage.removeItem(ATTEMPT_KEY);
+  } catch { /* ignore */ }
 }

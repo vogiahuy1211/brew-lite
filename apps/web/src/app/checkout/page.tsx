@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Wallet, CreditCard, Tag } from 'lucide-react';
 import { useCartStore } from '@/store/cart';
-import { apiErrorMessage, createOrder, processPayment, validatePromotion } from '@/services/api';
+import { apiErrorMessage, createOrder, processPayment, validatePromotion, createVNPayUrl } from '@/services/api';
 import type { CartItem } from '@/types/product';
-import { captureSession, isSessionCurrent, useSession } from '@/services/session';
+import { captureSession, generateUUID, isSessionCurrent, useSession } from '@/services/session';
 import { useHydrated } from '@/hooks/useHydrated';
 import { claimCheckoutAttempt, finishCheckoutAttempt, hasCheckoutAttempt, ownsCheckoutAttempt, updateCheckoutAttempt, type CheckoutAttempt } from '@/services/checkoutAttempt';
 
@@ -49,7 +49,7 @@ export default function CheckoutPage() {
   const items = useCartStore((state) => state.items);
   const totalPrice = Array.isArray(items) ? items.reduce((sum, item) => sum + (item?.price ?? 0) * (item?.qty ?? 0), 0) : NaN;
 
-  const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'CARD'>('WALLET');
+  const [paymentMethod, setPaymentMethod] = useState<'VNPAY' | 'WALLET' | 'CARD'>('WALLET');
   const [promoCode, setPromoCode] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
   const [promoMessage, setPromoMessage] = useState<string | null>(null);
@@ -157,11 +157,12 @@ export default function CheckoutPage() {
         promoCode: discountAmount > 0 ? promoCode : undefined,
       };
       // 1. Sinh Idempotency-Key (UUID v4)
-      const idempotencyKey = crypto.randomUUID();
+      const idempotencyKey = generateUUID();
+      const backendMethod: 'WALLET' | 'CARD' = paymentMethod === 'VNPAY' ? 'CARD' : paymentMethod;
       attempt = {
         version: 1, id: idempotencyKey, ownerId: auth.user.id, sessionId: session.id,
         cartSignature: submittedCart, order: orderPayload,
-        payment: { idempotencyKey, method: paymentMethod }, phase: 'creating-order',
+        payment: { idempotencyKey, method: backendMethod }, phase: 'creating-order',
       };
       claimCheckoutAttempt(attempt);
 
@@ -186,15 +187,24 @@ export default function CheckoutPage() {
       updateCheckoutAttempt(attempt, nextAttempt);
       attempt = nextAttempt;
 
+      if (paymentMethod === 'VNPAY') {
+        const returnUrl = typeof window !== 'undefined' ? window.location.origin + '/orders/vnpay-return' : 'http://localhost:3000/orders/vnpay-return';
+        const vnpayRes = await createVNPayUrl(orderRes.id, returnUrl);
+        if (typeof window !== 'undefined' && vnpayRes?.paymentUrl) {
+          window.location.href = vnpayRes.paymentUrl;
+        }
+        return;
+      }
+
       // 3. Tiến hành thanh toán qua Mock Payment
       const paymentRes = await processPayment({
         orderId: orderRes.id,
         idempotencyKey,
-        method: paymentMethod,
+        method: backendMethod,
       });
       if (!isCurrent() || !ownsCheckoutAttempt(attempt)) return;
 
-      const outcome = paymentOutcome(paymentRes, orderRes.id, paymentMethod, orderRes.finalAmount);
+      const outcome = paymentOutcome(paymentRes, orderRes.id, backendMethod, orderRes.finalAmount);
       if (outcome !== 'PAID') {
         if (outcome === 'FAILED') finishCheckoutAttempt(attempt, 'failed');
         else {
@@ -242,8 +252,30 @@ export default function CheckoutPage() {
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-semibold">
-            {error}
+          <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs space-y-2.5">
+            <p className="font-semibold">{error}</p>
+            {submissionLocked && (
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    try { sessionStorage.removeItem('brewlite_checkout_attempt'); } catch {}
+                    submissionStarted.current = false;
+                    setSubmissionLocked(false);
+                    setError(null);
+                  }}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
+                >
+                  Bỏ qua bảo vệ & Mở khóa đặt lại
+                </button>
+                <Link
+                  href="/orders"
+                  className="px-3 py-1.5 bg-white border border-red-300 text-red-700 font-bold rounded-xl text-xs hover:bg-red-50 transition-all"
+                >
+                  Kiểm tra Lịch sử đơn
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
@@ -251,6 +283,34 @@ export default function CheckoutPage() {
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <h3 className="text-sm font-bold text-gray-900 mb-3">Chọn phương thức thanh toán</h3>
           <div className="space-y-2">
+            {/* Cổng thanh toán VNPAY */}
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('VNPAY')}
+              className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all ${
+                paymentMethod === 'VNPAY'
+                  ? 'border-amber-500 bg-amber-50/50 text-amber-900 font-bold'
+                  : 'border-gray-200 text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-[11px] tracking-tight shadow-sm">
+                  VNP
+                </div>
+                <div className="text-left">
+                  <p className="text-xs font-bold text-gray-900">Cổng thanh toán VNPAY</p>
+                  <p className="text-[10px] text-gray-500">Thẻ ATM nội địa, QR Pay, Thẻ quốc tế</p>
+                </div>
+              </div>
+              <div
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  paymentMethod === 'VNPAY' ? 'border-amber-600' : 'border-gray-300'
+                }`}
+              >
+                {paymentMethod === 'VNPAY' && <div className="w-2 h-2 rounded-full bg-amber-600" />}
+              </div>
+            </button>
+
             <button
               type="button"
               onClick={() => setPaymentMethod('WALLET')}
