@@ -1,104 +1,109 @@
-# BrewLite ☕
+# BrewLite ☕ — Cashless Coffee Ordering System
 
-> Ứng dụng đặt cà phê và thanh toán không dùng tiền mặt — Đồ án môn Công nghệ Phần mềm, Đại học Sài Gòn.
+> **Hệ thống đặt cà phê và thanh toán không dùng tiền mặt**  
+> Đồ án môn học: **Công nghệ Phần mềm (Software Engineering)** — Đại học Sài Gòn (SGU)  
+> Mô hình phát triển: **Agile Scrum**  
+> Repository chính thức: https://github.com/vogiahuy1211/brew-lite
 
-## Giới thiệu
+---
 
-BrewLite giúp khách hàng đặt và thanh toán đồ uống chỉ trong vài chạm, giảm thời gian xếp hàng và nhận đơn nhanh tại quầy.
+## 🛠️ TECH STACK
 
-## Cấu trúc Repository (Monorepo)
+| Tầng hệ thống | Công nghệ sử dụng                                                    | Mục đích                                                            |
+| :------------ | :------------------------------------------------------------------- | :------------------------------------------------------------------ |
+| **Frontend**  | **Next.js 16** (Turbopack, TypeScript), **TailwindCSS**, **Zustand** | Giao diện mobile-first, quản lý giỏ hàng, SSR/SSG tối ưu tốc độ     |
+| **Backend**   | **NestJS 12** (TypeScript), **Passport-JWT**, **class-validator**    | Kiến trúc module hóa, bảo mật API, xử lý nghiệp vụ đơn & thanh toán |
+| **Database**  | **PostgreSQL 16/17**, **Prisma ORM**                                 | CSDL quan hệ ACID, hỗ trợ Transaction, Locking và Seed mẫu          |
+| **Kiểm thử**  | **Jest**, **Supertest**, **Node Test Runner**                        | Unit tests, E2E Concurrency tests, Frontend Integration tests       |
+| **DevOps**    | **Docker**, **Docker Compose**, **GitHub Actions**                   | Container hóa đa dịch vụ và CI/CD tự động kiểm thử                  |
 
-```
-brewlite/
-├── apps/
-│   ├── api/          # Backend NestJS (TypeScript) — Port 4000
-│   └── web/          # Frontend Next.js (TypeScript) — Port 3000
-├── database/         # SQL schema dump gốc
-├── docs/
-│   ├── requirements/ # SRS, Use-Cases, Context & Scope
-│   ├── diagrams/     # Activity, Sequence, Class diagrams (.puml + .svg)
-│   └── architecture/ # Kiến trúc tổng thể + ADRs
-├── tests/            # Integration & E2E tests
-├── .env.example      # Template biến môi trường
-├── docker-compose.yml
-└── README.md
-```
+---
 
-## Tech Stack
+## 🚀 HƯỚNG DẪN KHỞI CHẠY ĐỒ ÁN (HOW TO RUN)
 
-| Thành phần | Công nghệ |
-|---|---|
-| Frontend | Next.js 16 (TypeScript), TailwindCSS, Zustand |
-| Backend | NestJS 12 (TypeScript), Passport-JWT, class-validator |
-| Database | PostgreSQL 16 + Prisma ORM |
-| DevOps | Docker, Docker Compose, GitHub Actions |
+### 📌 Yêu cầu môi trường
 
-## Chạy Local (Docker)
+- **Node.js:** Phiên bản 18 trở lên (khuyên dùng Node 20 hoặc 22/24).
+- **PostgreSQL:** Đang chạy tại cổng `5432` (database: `brewlite_db`).
 
-**Yêu cầu:** Docker Desktop đã cài và đang chạy.
+---
 
-```bash
-# 1. Sao chép biến môi trường
-cp .env.example .env
+### CÁCH 1: CHẠY TRỰC TIẾP (KHUYÊN DÙNG ĐỂ DEV / TEST)
 
-# 2. Khởi động toàn bộ hệ thống
-docker compose up --build
+Cần mở **2 cửa sổ Terminal (PowerShell)**:
 
-# Truy cập:
-#   Frontend: http://localhost:3000
-#   Backend:  http://localhost:4000
-#   Health:   http://localhost:4000/health
-```
+#### 🔹 Cửa sổ 1: Khởi động Backend (Cổng 4000)
 
-## Chạy Development (Không dùng Docker)
-
-```bash
-# ── Backend ──
+```powershell
+# 1. Di chuyển vào thư mục backend
 cd apps/api
-cp .env.example .env          # cấu hình DATABASE_URL
-npm install
-npx prisma migrate dev        # chạy migration
-npx prisma db seed            # seed dữ liệu mẫu
-npm run start:dev             # http://localhost:4000
 
-# ── Frontend ──
+# 2. Cài đặt thư viện (nếu chưa cài)
+npm install --legacy-peer-deps
+
+# 3. Đồng bộ schema và seed 15 sản phẩm mẫu
+npx prisma generate
+npm run db:seed
+
+# 4. Khởi chạy server Backend
+npm run start:dev
+```
+
+> Server API sẽ sẵn sàng tại: **`http://localhost:4000/api`**  
+> Kiểm tra trạng thái: **`http://localhost:4000/api/health`** _(kết quả: `{"status": "ok", "database": "connected"}`)_
+
+---
+
+#### 🔹 Cửa sổ 2: Khởi động Frontend Web (Cổng 3000)
+
+```powershell
+# 1. Di chuyển vào thư mục frontend
 cd apps/web
-cp .env.example .env.local    # cấu hình NEXT_PUBLIC_API_URL
+
+# 2. Cài đặt thư viện (nếu chưa cài)
 npm install
-npm run dev                   # http://localhost:3000
+
+# 3. Khởi chạy giao diện Next.js
+npx next dev -H 0.0.0.0 -p 3000
 ```
 
-## Kiểm thử
+> **Địa chỉ truy cập:**  
+> • Trên máy tính: **`http://localhost:3000`**  
+> • Trên điện thoại di động (cùng mạng WiFi): **`http://<IP_MÁY_BẠN>:3000`** _(ví dụ: `http://192.168.1.21:3000`)_
 
-```bash
-# Unit tests (backend)
-cd apps/api && npm test
+---
 
-# Unit tests (frontend)
-cd apps/web && npm test
+### CÁCH 2: CHẠY BẰNG DOCKER COMPOSE (1 LỆNH TỰ ĐỘNG)
 
-# Integration & E2E tests
-cd tests && npm test
+Nếu máy bạn đã cài sẵn Docker Desktop:
+
+```powershell
+# Khởi động cùng lúc cả PostgreSQL, NestJS Backend và Next.js Frontend
+docker compose up -d --build
 ```
 
-## CI/CD
+> Truy cập: Web `http://localhost:3000` | API `http://localhost:4000/api`
 
-- **CI:** GitHub Actions tự động chạy Lint → Test → Build trên mỗi Pull Request.
-- **CD:** Tự động deploy lên Production khi push tag hoặc merge vào `main`.
+---
 
-## Tài liệu
+## 🧪 HƯỚNG DẪN CHẠY KIỂM THỬ (TEST SUITE)
 
-| Tài liệu | Đường dẫn |
-|---|---|
-| Bối cảnh & Phạm vi | `docs/requirements/context-and-scope.md` |
-| Đặc tả Yêu cầu (SRS) | `docs/requirements/srs.md` |
-| Sơ đồ hệ thống (UML) | `docs/diagrams/` |
-| Kiến trúc & ADR | `docs/architecture/` |
-| Ma trận Truy vết | `docs/traceability-matrix.md` |
+Dự án trang bị hệ thống kiểm thử tự động toàn diện đạt tỷ lệ pass 100%:
 
-## Thành viên nhóm
-
-<!-- TODO: Cập nhật danh sách thành viên -->
-| Họ tên | MSSV | Vai trò |
-|---|---|---|
-|  |  |  |
+1. **Unit Tests Backend (17/17 tests pass):**
+   ```powershell
+   cd apps/api
+   npm test
+   ```
+2. **E2E Integration Tests Backend — Task 10 (5/5 tests pass):**
+   _(Kiểm tra Idempotency Key, Khóa lạc quan chống bán vượt tồn kho và Order State Machine)_
+   ```powershell
+   cd apps/api
+   npm run test:e2e
+   ```
+3. **Frontend Integration Tests (89/89 tests pass):**
+   _(Kiểm thử luồng Session, Token lifecycle, Auth, Giỏ hàng và Checkout)_
+   ```powershell
+   cd apps/web
+   node tests/integration.test.mjs
+   ```
