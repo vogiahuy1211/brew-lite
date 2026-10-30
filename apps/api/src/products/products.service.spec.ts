@@ -92,7 +92,7 @@ describe('ProductsService', () => {
         stock: 10,
       });
       expect(mockPrismaService.products.findUnique).toHaveBeenCalledWith({
-        where: { id: 'uuid-1' },
+        where: { id: 'uuid-1' }, include: { RecipeItems: { include: { Ingredients: true } } },
       });
     });
 
