@@ -32,10 +32,11 @@ export class AuthService {
         id: true,
         email: true,
         loyalty_points: true,
+        role: true,
       },
     });
 
-    const token = this.jwtService.sign({ sub: user.id, email: user.email });
+    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
 
     return {
       user,
@@ -64,6 +65,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         loyalty_points: user.loyalty_points,
+        role: user.role,
       },
       access_token: token,
     };

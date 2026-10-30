@@ -43,7 +43,12 @@ export default function AuthPage() {
       if (lifetime.current !== generation) return;
       await acceptLogin(res, origin);
       if (lifetime.current === generation) {
-        router.replace(safeReturnPath(new URLSearchParams(window.location.search).get('next')));
+        if (res?.user?.role === 'ADMIN') {
+          router.replace('/admin');
+        } else {
+          const nextParam = new URLSearchParams(window.location.search).get('next');
+          router.replace(safeReturnPath(nextParam));
+        }
       }
     } catch (err) {
       if (lifetime.current === generation) setError(apiErrorMessage(err, 'Thao tác không thành công'));
