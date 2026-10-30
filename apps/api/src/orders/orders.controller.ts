@@ -14,6 +14,11 @@ export class OrdersController {
     return this.ordersService.create(req.user.id, dto);
   }
 
+  @Get()
+  getAllOrders() {
+    return this.ordersService.findAllOrders();
+  }
+
   @Get('me')
   getMyOrders(@Request() req: any) {
     return this.ordersService.findUserOrders(req.user.id);
@@ -25,7 +30,11 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body('status') status: order_status) {
-    return this.ordersService.updateStatus(id, status);
+  updateStatus(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body('status') status: order_status,
+  ) {
+    return this.ordersService.updateStatus(id, status, req.user);
   }
 }

@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { order_status, item_size } from '@prisma/client';
+import { order_status, item_size, user_role } from '@prisma/client';
 import { assertTransition } from './order-state-machine';
 
 // Phụ thu theo Size
@@ -13,6 +20,8 @@ const SIZE_SURCHARGE: Record<item_size, number> = {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateOrderDto) {
@@ -33,13 +42,33 @@ export class OrdersService {
       }> = [];
 
       for (const item of dto.items) {
-        // 1. Kiểm tra tồn kho và version sản phẩm
+        // 1. Kiểm tra tồn kho và version sản phẩm cùng định mức nguyên liệu
         const product = await tx.products.findUnique({
           where: { id: item.productId },
+          include: {
+            RecipeItems: {
+              include: { Ingredients: true },
+            },
+          },
         });
 
         if (!product) {
           throw new NotFoundException(`Sản phẩm với ID ${item.productId} không tồn tại`);
+        }
+
+        // Kiểm tra nguyên liệu trong kho theo định mức RecipeItems
+        if (product.RecipeItems && product.RecipeItems.length > 0) {
+          const matchingRecipes = product.RecipeItems.filter(
+            (r: any) => !r.size || r.size === item.size,
+          );
+          for (const r of matchingRecipes) {
+            const needed = Number(r.amount_needed) * item.qty;
+            if (Number(r.Ingredients.stock_quantity) < needed) {
+              throw new ConflictException(
+                `Nguyên liệu "${r.Ingredients.name}" trong kho không đủ để pha chế món "${product.name}"`,
+              );
+            }
+          }
         }
 
         if (product.stock < item.qty) {
@@ -169,6 +198,54 @@ export class OrdersService {
     });
   }
 
+  async findAllOrders() {
+    const orders = await this.prisma.orders.findMany({
+      orderBy: { created_at: 'desc' },
+      take: 50,
+      include: {
+        Users: {
+          select: { email: true },
+        },
+        OrderItems: {
+          include: {
+            Products: true,
+            OrderItemToppings: {
+              include: { Toppings: true },
+            },
+          },
+        },
+        Payments: true,
+      },
+    });
+
+    return orders.map((o) => ({
+      id: o.id,
+      userEmail: o.Users?.email,
+      status: o.status,
+      subtotal: Number(o.subtotal),
+      discountAmount: Number(o.discount_amount),
+      finalAmount: Number(o.final_amount),
+      createdAt: o.created_at,
+      items: o.OrderItems.map((oi) => ({
+        id: oi.id,
+        productId: oi.product_id,
+        productName: oi.Products.name,
+        imageUrl: oi.Products.image_url,
+        size: oi.size,
+        qty: oi.qty,
+        unitPrice: Number(oi.unit_price),
+        lineTotal: Number(oi.line_total),
+        toppings: oi.OrderItemToppings.map((t) => t.Toppings.name),
+      })),
+      payments: o.Payments.map((p) => ({
+        id: p.id,
+        method: p.method,
+        status: p.status,
+        amount: Number(p.amount),
+      })),
+    }));
+  }
+
   async findUserOrders(userId: string) {
     const orders = await this.prisma.orders.findMany({
       where: { user_id: userId },
@@ -254,7 +331,11 @@ export class OrdersService {
     };
   }
 
-  async updateStatus(orderId: string, nextStatus: order_status) {
+  async updateStatus(
+    orderId: string,
+    nextStatus: order_status,
+    user?: { id: string; role: user_role },
+  ) {
     const order = await this.prisma.orders.findUnique({
       where: { id: orderId },
     });
@@ -263,8 +344,37 @@ export class OrdersService {
       throw new NotFoundException('Đơn hàng không tồn tại');
     }
 
-    // State machine check
-    assertTransition(order.status, nextStatus);
+    const isAdmin = user?.role === user_role.ADMIN;
+
+    // 1. Kiểm tra quyền của khách hàng (hoặc user không phải Admin)
+    if (user && !isAdmin) {
+      if (order.user_id !== user.id) {
+        throw new ForbiddenException('Bạn không có quyền thao tác trên đơn hàng này');
+      }
+
+      // Khách hàng hủy đơn: từ trạng thái PREPARING trở về sau là không cho khách hàng hủy đơn nữa
+      if (nextStatus === order_status.CANCELLED) {
+        if (
+          order.status === order_status.PREPARING ||
+          order.status === order_status.READY ||
+          order.status === order_status.COMPLETED ||
+          order.status === order_status.CANCELLED
+        ) {
+          throw new BadRequestException(
+            'Đơn hàng đang hoặc đã được pha chế (từ PREPARING trở đi), không thể hủy đơn lúc này!',
+          );
+        }
+      }
+    }
+
+    // 2. Chuyển đổi trạng thái (State Machine):
+    if (isAdmin && nextStatus === order_status.CANCELLED) {
+      if (order.status === order_status.COMPLETED || order.status === order_status.CANCELLED) {
+        throw new BadRequestException('Không thể hủy đơn hàng đã hoàn tất hoặc đã hủy!');
+      }
+    } else {
+      assertTransition(order.status, nextStatus);
+    }
 
     return this.prisma.orders.update({
       where: { id: orderId },
