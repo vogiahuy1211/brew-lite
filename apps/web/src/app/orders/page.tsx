@@ -1,5 +1,6 @@
 'use client';
 
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -32,6 +33,8 @@ export default function OrderHistoryPage() {
       return;
     }
     fetchOrders();
+    const interval = typeof setInterval !== 'undefined' ? setInterval(() => { fetchOrders(); }, 3000) : null;
+    return () => { if (interval) clearInterval(interval); };
   }, [router]);
 
   const handleLogout = () => {
@@ -162,8 +165,8 @@ export default function OrderHistoryPage() {
                       </span>
                     </div>
 
-                    {/* Nút hủy đơn nếu trạng thái hợp lệ */}
-                    {canCancel && (
+                    {/* Nút hủy đơn nếu trạng thái hợp lệ (chỉ trước PREPARING) */}
+                    {canCancel ? (
                       <div className="border-t border-gray-50 pt-2 flex justify-end">
                         <button
                           type="button"
@@ -174,6 +177,24 @@ export default function OrderHistoryPage() {
                           <XCircle size={14} />
                           {cancellingId === ord.id ? 'Đang hủy...' : 'Hủy đơn này'}
                         </button>
+                      </div>
+                    ) : (
+                      <div className="border-t border-gray-50 pt-2 flex justify-end">
+                        {(ord.status === 'PREPARING' || ord.status === 'READY') && (
+                          <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/60 px-2.5 py-1 rounded-xl font-medium inline-flex items-center gap-1">
+                            ☕ Đang pha chế — Không thể hủy đơn
+                          </span>
+                        )}
+                        {ord.status === 'COMPLETED' && (
+                          <span className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-xl font-medium inline-flex items-center gap-1">
+                            ✅ Đã nhận món thành công
+                          </span>
+                        )}
+                        {ord.status === 'CANCELLED' && (
+                          <span className="text-[11px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-xl font-medium inline-flex items-center gap-1">
+                            ❌ Đã hủy đơn
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
