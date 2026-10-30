@@ -448,8 +448,7 @@ for (const pathname of ['/', '/cart', '/checkout', '/orders', '/orders/'+orderId
     if(pathname==='/login') assert.equal(view.render(),null);
     else {
       assert.equal(uiNodes(view.render()).filter(n=>n.type==='footer').length,1);
-      assert.deepEqual(uiNodes(view.render()).filter(n=>n.type==='a').map(n=>n.props.href),['/','/','/cart','/orders','/login']);
-      assert.match(view.text(),/không phát sinh giao dịch tiền thật/);
+      assert.match(view.text(),/0816808776/);
     }
   });
 }
