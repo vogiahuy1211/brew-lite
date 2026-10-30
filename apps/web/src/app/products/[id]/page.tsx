@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Check, Plus, Minus } from 'lucide-react';
-import { getProduct, getToppings } from '@/services/api';
+import { getProduct, getToppings, checkCartLimits } from '@/services/api';
 import { Product, Topping, ItemSize } from '@/types/product';
 import { useCartStore, SIZE_SURCHARGES } from '@/store/cart';
 
@@ -22,6 +22,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [selectedToppings, setSelectedToppings] = useState<Topping[]>([]);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const [maxAllowedQty, setMaxAllowedQty] = useState<number>(99);
+  const [limitingName, setLimitingName] = useState<string | null>(null);
 
   const addItem = useCartStore((state) => state.addItem);
 
@@ -37,6 +39,27 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         setLoading(false);
       });
   }, [id]);
+
+  useEffect(() => {
+    if (!product) return;
+    checkCartLimits([
+      {
+        productId: product.id,
+        size: selectedSize,
+        qty: 1,
+        toppingIds: selectedToppings.map((t) => t.id),
+      },
+    ])
+      .then((res) => {
+        const itemLimit = Object.values(res?.limits || {})[0];
+        if (itemLimit) {
+          setMaxAllowedQty(itemLimit.maxQty);
+          setLimitingName(itemLimit.limitingIngredient || null);
+          setQty((prev) => (itemLimit.maxQty > 0 ? Math.min(prev, itemLimit.maxQty) : 1));
+        }
+      })
+      .catch(() => {});
+  }, [product, selectedSize, selectedToppings]);
 
   const toggleTopping = (topping: Topping) => {
     if (selectedToppings.some((t) => t.id === topping.id)) {
@@ -116,7 +139,19 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <p className="text-xl font-extrabold text-amber-600 mt-1">
             {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.price)}
           </p>
-          <p className="text-xs text-gray-500 mt-1">Còn lại trong kho: {product.stock} ly</p>
+          {product.stock > 0 && maxAllowedQty > 0 ? (
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Sẵn sàng pha chế
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 rounded-full">
+                Tạm hết món (Hết nguyên liệu)
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Chọn Size */}
@@ -167,13 +202,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   >
                     <div className="flex items-center gap-2.5">
                       <div
-                        className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
                           isChecked ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-300 bg-white'
                         }`}
                       >
-                        {isChecked && <Check size={14} />}
+                        {isChecked && <Check size={13} strokeWidth={3} />}
                       </div>
-                      <span className="text-xs font-semibold">{top.name}</span>
+                      <span className="text-xs font-semibold text-gray-800">{top.name}</span>
                     </div>
                     <span className="text-xs font-bold text-amber-700">
                       +{new Intl.NumberFormat('vi-VN').format(top.price)}đ
@@ -186,23 +221,41 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         )}
 
         {/* Chọn Số Lượng */}
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
-          <span className="text-sm font-bold text-gray-900">Số lượng</span>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
-              className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-700 active:bg-gray-100"
-            >
-              <Minus size={14} />
-            </button>
-            <span className="w-6 text-center font-bold text-sm text-gray-900">{qty}</span>
-            <button
-              onClick={() => setQty((q) => q + 1)}
-              className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-700 active:bg-gray-100"
-            >
-              <Plus size={14} />
-            </button>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-gray-900">Số lượng</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+                className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-700 active:bg-gray-100"
+              >
+                <Minus size={14} />
+              </button>
+              <span className="w-6 text-center font-bold text-sm text-gray-900">{qty}</span>
+              <button
+                disabled={qty >= maxAllowedQty}
+                onClick={() => {
+                  if (qty < maxAllowedQty) setQty((q) => q + 1);
+                }}
+                className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${
+                  qty >= maxAllowedQty
+                    ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                    : 'border-gray-200 text-gray-700 active:bg-gray-100'
+                }`}
+                title={qty >= maxAllowedQty ? `Hết nguyên liệu (${limitingName})` : 'Tăng số lượng'}
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
+
+          {maxAllowedQty < 99 && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg mt-2.5 font-medium text-right">
+              {maxAllowedQty <= 0
+                ? `Hết nguyên liệu "${limitingName || 'thành phần'}" trong kho`
+                : `Tối đa ${maxAllowedQty} ly theo nguyên liệu "${limitingName || 'thành phần'}" còn trong kho`}
+            </p>
+          )}
         </div>
       </main>
 
@@ -217,7 +270,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
           <button
             onClick={handleAddToCart}
-            disabled={product.stock === 0}
+            disabled={product.stock === 0 || maxAllowedQty <= 0}
             className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 active:scale-95 disabled:bg-gray-300 text-white font-bold rounded-2xl text-sm transition-all shadow-md"
           >
             {added ? '✓ Đã thêm' : 'Thêm vào giỏ'}
