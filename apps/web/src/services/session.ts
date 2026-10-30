@@ -15,11 +15,23 @@ export const useSession = create<SessionState>(() => ({
   identity: { id: '', token: null }, user: null, status: 'checking', revalidating: false, logoutError: null,
 }));
 
-const baseURL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api`;
+const isBrowser = typeof window !== 'undefined';
+const baseURL = isBrowser ? '/api' : `${process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api`;
 const verifier = axios.create({ baseURL, timeout: 10000 });
 let storageFailed = false;
 let pending: { id: string; promise: Promise<void> } | undefined;
 const same = (a: SessionIdentity, b: SessionIdentity) => a.id === b.id && a.token === b.token;
+
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 // Dữ liệu lưu trữ cung cấp thông tin đăng nhập, không chứng minh đã xác thực.
 // Dữ liệu cũ của main được cấp ID phiên; mỗi lần đăng nhập/đăng xuất sau đó tạo ID mới.
@@ -29,7 +41,7 @@ export function captureSession(): SessionIdentity {
     const token = localStorage.getItem('brewlite_token');
     let id = localStorage.getItem('brewlite_session_id');
     if (!id) {
-      id = crypto.randomUUID();
+      id = generateUUID();
       localStorage.setItem('brewlite_session_id', id);
     }
     const identity = { id, token };
@@ -38,7 +50,7 @@ export function captureSession(): SessionIdentity {
     }
   } catch {
     storageFailed = true;
-    useSession.setState({ identity: { id: crypto.randomUUID(), token: null }, user: null, status: 'unavailable' });
+    useSession.setState({ identity: { id: generateUUID(), token: null }, user: null, status: 'unavailable' });
   }
   return useSession.getState().identity;
 }
@@ -56,7 +68,7 @@ export function assertSession(identity: SessionIdentity) {
 }
 
 function replaceSession(token: string | null) {
-  const identity = { id: crypto.randomUUID(), token };
+  const identity = { id: generateUUID(), token };
   try {
     localStorage.setItem('brewlite_session_id', identity.id);
     localStorage.removeItem('brewlite_user');
@@ -72,7 +84,7 @@ function replaceSession(token: string | null) {
 }
 
 export function logout() {
-  const identity = { id: crypto.randomUUID(), token: null };
+  const identity = { id: generateUUID(), token: null };
   let credentialsRemoved = false;
   let metadataFailed = false;
   // Luôn thử xóa token; lỗi dọn dữ liệu phụ không được bỏ qua bước này.

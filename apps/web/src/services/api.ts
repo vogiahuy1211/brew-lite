@@ -1,7 +1,8 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { assertSession, captureSession, invalidateSession, useSession, verifySession, type SessionIdentity } from './session';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const isBrowser = typeof window !== 'undefined';
+const API_BASE_URL = isBrowser ? '' : (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
 const configuredTimeout = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS);
 
 export const apiClient = axios.create({
