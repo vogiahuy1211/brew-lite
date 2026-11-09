@@ -18,17 +18,73 @@ export type ConfirmedOrder = {
 export function readOrder(value: unknown, expectedId: string): ConfirmedOrder {
   if (!value || typeof value !== 'object') throw new Error('Không xác minh được dữ liệu đơn hàng.');
   const order = value as Record<string, unknown>;
-  if (order.id !== expectedId || typeof order.status !== 'string'
-    || !Object.hasOwn(orderLabels, order.status)
-    || typeof order.finalAmount !== 'number' || !Number.isFinite(order.finalAmount) || order.finalAmount < 0
-    || !Array.isArray(order.items) || !order.items.every((item: unknown) => {
-      if (!item || typeof item !== 'object') return false;
-      const row = item as Record<string, unknown>;
-      return typeof row.id === 'string' && typeof row.productName === 'string'
-        && typeof row.qty === 'number' && Number.isInteger(row.qty) && row.qty > 0
-        && typeof row.size === 'string'
-        && typeof row.lineTotal === 'number' && Number.isFinite(row.lineTotal) && row.lineTotal >= 0
-        && Array.isArray(row.toppings) && row.toppings.every(topping => typeof topping === 'string');
-    })) throw new Error('Không xác minh được dữ liệu hoặc trạng thái đơn hàng.');
-  return value as ConfirmedOrder;
+  if (
+    order.id !== expectedId ||
+    typeof order.status !== 'string' ||
+    !Object.hasOwn(orderLabels, order.status) ||
+    typeof order.finalAmount !== 'number' ||
+    !Number.isFinite(order.finalAmount) ||
+    order.finalAmount < 0 ||
+    !Array.isArray(order.items)
+  ) {
+    throw new Error('Không xác minh được dữ liệu hoặc trạng thái đơn hàng.');
+  }
+
+  const items: ConfirmedOrder['items'] = order.items.map((item: unknown) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error('Không xác minh được dữ liệu hoặc trạng thái đơn hàng.');
+    }
+    const row = item as Record<string, unknown>;
+    const id = row.id;
+    const productName = row.productName;
+    const qty = row.qty;
+    const size = row.size;
+    const lineTotal = row.lineTotal;
+    const rawToppings = row.toppings;
+
+    const validBasic =
+      typeof id === 'string' &&
+      typeof productName === 'string' &&
+      typeof qty === 'number' &&
+      Number.isInteger(qty) &&
+      qty > 0 &&
+      typeof size === 'string' &&
+      typeof lineTotal === 'number' &&
+      Number.isFinite(lineTotal) &&
+      lineTotal >= 0 &&
+      Array.isArray(rawToppings);
+
+    if (!validBasic) {
+      throw new Error('Không xác minh được dữ liệu hoặc trạng thái đơn hàng.');
+    }
+
+    const toppings: string[] = rawToppings.map((topping: unknown) => {
+      if (typeof topping === 'string') return topping;
+      if (
+        topping &&
+        typeof topping === 'object' &&
+        'name' in topping &&
+        typeof (topping as Record<string, unknown>).name === 'string'
+      ) {
+        return (topping as Record<string, unknown>).name as string;
+      }
+      throw new Error('Không xác minh được dữ liệu hoặc trạng thái đơn hàng.');
+    });
+
+    return {
+      id,
+      productName,
+      qty,
+      size,
+      lineTotal,
+      toppings,
+    };
+  });
+
+  return {
+    id: order.id,
+    status: order.status as keyof typeof orderLabels,
+    finalAmount: order.finalAmount,
+    items,
+  };
 }
