@@ -27,7 +27,11 @@ import {
   Clock,
   XCircle,
   Edit2,
-  Trash2
+  Trash2,
+  Tag,
+  Ticket,
+  Calendar,
+  Percent
 } from 'lucide-react';
 import { 
   getIngredients, 
@@ -39,7 +43,11 @@ import {
   updateOrderStatus,
   updateRecipeItem,
   createRecipeItem,
-  deleteRecipeItem
+  deleteRecipeItem,
+  getAllPromotions,
+  createPromotion,
+  updatePromotion,
+  deletePromotion
 } from '@/services/api';
 import { logout, useSession } from '@/services/session';
 
@@ -47,7 +55,29 @@ export default function AdminPage() {
   const router = useRouter();
   const sessionUser = useSession((state) => state.user);
   const sessionStatus = useSession((state) => state.status);
-  const [activeTab, setActiveTab] = useState<'INGREDIENTS' | 'RECIPES' | 'ORDERS' | 'LOGS'>('INGREDIENTS');
+  const [activeTab, setActiveTab] = useState<'INGREDIENTS' | 'RECIPES' | 'ORDERS' | 'PROMOTIONS' | 'LOGS'>('INGREDIENTS');
+  const [promotions, setPromotions] = useState<any[]>([]);
+  const [promoSearchQuery, setPromoSearchQuery] = useState('');
+  const [promoFilter, setPromoFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+
+  // Modals state: Promotions
+  const [showCreatePromoModal, setShowCreatePromoModal] = useState(false);
+  const [newPromoCode, setNewPromoCode] = useState('');
+  const [newPromoDiscount, setNewPromoDiscount] = useState<number>(10000);
+  const [newPromoIsActive, setNewPromoIsActive] = useState<boolean>(true);
+  const [newPromoStartAt, setNewPromoStartAt] = useState<string>('');
+  const [newPromoEndAt, setNewPromoEndAt] = useState<string>('');
+  const [submittingCreatePromo, setSubmittingCreatePromo] = useState(false);
+
+  const [editingPromo, setEditingPromo] = useState<any | null>(null);
+  const [editPromoCode, setEditPromoCode] = useState('');
+  const [editPromoDiscount, setEditPromoDiscount] = useState<number>(10000);
+  const [editPromoIsActive, setEditPromoIsActive] = useState<boolean>(true);
+  const [editPromoStartAt, setEditPromoStartAt] = useState<string>('');
+  const [editPromoEndAt, setEditPromoEndAt] = useState<string>('');
+  const [submittingEditPromo, setSubmittingEditPromo] = useState(false);
+  const [deletingPromoId, setDeletingPromoId] = useState<string | null>(null);
+  const [togglingPromoId, setTogglingPromoId] = useState<string | null>(null);
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
@@ -90,16 +120,18 @@ export default function AdminPage() {
   const loadData = async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
-      const [ingData, recData, logData, ordData] = await Promise.all([
+      const [ingData, recData, logData, ordData, promoData] = await Promise.all([
         getIngredients(),
         getRecipes(),
         getInventoryLogs(50),
         getAllOrders(),
+        getAllPromotions(),
       ]);
       setIngredients(ingData);
       setRecipes(recData);
       setLogs(logData);
       setOrders(ordData);
+      setPromotions(promoData || []);
     } catch (err) {
       console.error('Lỗi tải dữ liệu Admin:', err);
     } finally {
@@ -136,6 +168,110 @@ export default function AdminPage() {
     if (orderStatusFilter === 'ALL') return orders;
     return orders.filter((o) => o.status === orderStatusFilter);
   }, [orders, orderStatusFilter]);
+const filteredPromotions = useMemo(() => {
+    return promotions.filter((p: any) => {
+      const matchesSearch = !promoSearchQuery.trim() || p.code.toLowerCase().includes(promoSearchQuery.toLowerCase());
+      const matchesFilter =
+        promoFilter === 'ALL' ||
+        (promoFilter === 'ACTIVE' && p.isActive) ||
+        (promoFilter === 'INACTIVE' && !p.isActive);
+      return matchesSearch && matchesFilter;
+    });
+  }, [promotions, promoSearchQuery, promoFilter]);
+
+  const handleCreatePromoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPromoCode.trim()) {
+      alert('Vui lòng nhập mã giảm giá!');
+      return;
+    }
+    if (newPromoDiscount < 1000) {
+      alert('Số tiền giảm tối thiểu là 1,000đ!');
+      return;
+    }
+
+    setSubmittingCreatePromo(true);
+    try {
+      await createPromotion({
+        code: newPromoCode.trim().toUpperCase(),
+        discountAmount: Number(newPromoDiscount),
+        isActive: newPromoIsActive,
+        startAt: newPromoStartAt ? new Date(newPromoStartAt).toISOString() : undefined,
+        endAt: newPromoEndAt ? new Date(newPromoEndAt).toISOString() : undefined,
+      });
+      alert('Tạo mã giảm giá thành công!');
+      setShowCreatePromoModal(false);
+      setNewPromoCode('');
+      setNewPromoDiscount(10000);
+      setNewPromoIsActive(true);
+      setNewPromoStartAt('');
+      setNewPromoEndAt('');
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể tạo mã giảm giá!');
+    } finally {
+      setSubmittingCreatePromo(false);
+    }
+  };
+
+  const handleEditPromoClick = (p: any) => {
+    setEditingPromo(p);
+    setEditPromoCode(p.code);
+    setEditPromoDiscount(p.discountAmount);
+    setEditPromoIsActive(p.isActive);
+    setEditPromoStartAt(p.startAt ? new Date(p.startAt).toISOString().split('T')[0] : '');
+    setEditPromoEndAt(p.endAt ? new Date(p.endAt).toISOString().split('T')[0] : '');
+  };
+
+  const handleEditPromoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPromo) return;
+
+    setSubmittingEditPromo(true);
+    try {
+      await updatePromotion(editingPromo.id, {
+        code: editPromoCode.trim().toUpperCase(),
+        discountAmount: Number(editPromoDiscount),
+        isActive: editPromoIsActive,
+        startAt: editPromoStartAt ? new Date(editPromoStartAt).toISOString() : null,
+        endAt: editPromoEndAt ? new Date(editPromoEndAt).toISOString() : null,
+      });
+      alert('Cập nhật mã giảm giá thành công!');
+      setEditingPromo(null);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể cập nhật mã giảm giá!');
+    } finally {
+      setSubmittingEditPromo(false);
+    }
+  };
+
+  const handleTogglePromoStatus = async (p: any) => {
+    setTogglingPromoId(p.id);
+    try {
+      await updatePromotion(p.id, { isActive: !p.isActive });
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể thay đổi trạng thái!');
+    } finally {
+      setTogglingPromoId(null);
+    }
+  };
+
+  const handleDeletePromo = async (p: any) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa mã giảm giá "${p.code}" không?`)) return;
+
+    setDeletingPromoId(p.id);
+    try {
+      await deletePromotion(p.id);
+      alert(`Đã xóa mã giảm giá "${p.code}" thành công!`);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể xóa mã giảm giá này!');
+    } finally {
+      setDeletingPromoId(null);
+    }
+  };
 
   const handleOpenRestock = (ing: any) => {
     setSelectedIngredient(ing);
@@ -403,7 +539,7 @@ export default function AdminPage() {
         </div>
 
         {/* ── Tabs Navigation ── */}
-        <div className="grid grid-cols-4 bg-gray-200/80 p-1 rounded-2xl gap-1 text-xs font-semibold">
+        <div className="grid grid-cols-5 bg-gray-200/80 p-1 rounded-2xl gap-1 text-[11px] sm:text-xs font-semibold">
           <button
             onClick={() => setActiveTab('INGREDIENTS')}
             className={`py-2 rounded-xl transition-all flex flex-col items-center gap-0.5 ${
@@ -430,6 +566,15 @@ export default function AdminPage() {
           >
             <ShoppingBag size={14} />
             <span>Đơn hàng ({orders.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('PROMOTIONS')}
+            className={`py-2 rounded-xl transition-all flex flex-col items-center gap-0.5 ${
+              activeTab === 'PROMOTIONS' ? 'bg-white shadow text-amber-900 font-bold' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Tag size={14} />
+            <span>Giảm giá ({promotions.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('LOGS')}
@@ -828,6 +973,171 @@ export default function AdminPage() {
             )}
           </div>
         )}
+        {/* ══════════════════════════════════════════════════════════════════════════
+            TAB 4: QUẢN LÝ MÃ GIẢM GIÁ (PROMOTIONS CRUD)
+         ══════════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'PROMOTIONS' && (
+          <div className="space-y-4">
+            {/* Header điều khiển */}
+            <div className="flex flex-col sm:flex-row gap-2 justify-between items-stretch sm:items-center">
+              <div className="relative flex-1">
+                <Search size={15} className="absolute left-3 top-2.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm mã giảm giá (ví dụ: WELCOME, SUMMER)..."
+                  value={promoSearchQuery}
+                  onChange={(e) => setPromoSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-white rounded-xl border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-amber-500 shadow-sm"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <select
+                  value={promoFilter}
+                  onChange={(e: any) => setPromoFilter(e.target.value)}
+                  className="px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 focus:outline-none focus:border-amber-500 shadow-sm"
+                >
+                  <option value="ALL">Tất cả ({promotions.length})</option>
+                  <option value="ACTIVE">Đang bật ({promotions.filter((p) => p.isActive).length})</option>
+                  <option value="INACTIVE">Đã tắt ({promotions.filter((p) => !p.isActive).length})</option>
+                </select>
+
+                <button
+                  onClick={() => setShowCreatePromoModal(true)}
+                  className="px-3 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all whitespace-nowrap"
+                >
+                  <Plus size={15} />
+                  <span>Tạo mã mới</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Danh sách mã giảm giá */}
+            {filteredPromotions.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 text-center border border-gray-100 shadow-sm space-y-3">
+                <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+                  <Ticket size={24} />
+                </div>
+                <h4 className="text-sm font-bold text-gray-800">Không tìm thấy mã giảm giá nào</h4>
+                <p className="text-xs text-gray-500">
+                  {promoSearchQuery ? 'Thử tìm với từ khóa khác' : 'Chưa có chương trình khuyến mãi nào được tạo.'}
+                </p>
+                <button
+                  onClick={() => setShowCreatePromoModal(true)}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1 shadow-sm"
+                >
+                  <Plus size={14} /> Tạo mã đầu tiên
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {filteredPromotions.map((p: any) => {
+                  const now = new Date();
+                  const isExpired = p.endAt && new Date(p.endAt) < now;
+                  const isUpcoming = p.startAt && new Date(p.startAt) > now;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-3 transition-all hover:border-amber-200"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-sm text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200 tracking-wider">
+                              {p.code}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                !p.isActive
+                                  ? 'bg-gray-100 text-gray-500'
+                                  : isExpired
+                                  ? 'bg-red-50 text-red-600'
+                                  : isUpcoming
+                                  ? 'bg-blue-50 text-blue-600'
+                                  : 'bg-emerald-50 text-emerald-700'
+                              }`}
+                            >
+                              {!p.isActive
+                                ? 'Đã tắt'
+                                : isExpired
+                                ? 'Hết hạn'
+                                : isUpcoming
+                                ? 'Chưa bắt đầu'
+                                : 'Đang hoạt động'}
+                            </span>
+                          </div>
+                          <p className="text-xs font-extrabold text-emerald-700">
+                            Giảm {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.discountAmount)}
+                          </p>
+                        </div>
+
+                        {/* Nút bật/tắt nhanh */}
+                        <button
+                          type="button"
+                          disabled={togglingPromoId === p.id}
+                          onClick={() => handleTogglePromoStatus(p)}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${
+                            p.isActive
+                              ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                          }`}
+                        >
+                          {togglingPromoId === p.id ? 'Đang lưu...' : p.isActive ? 'BẬT' : 'TẮT'}
+                        </button>
+                      </div>
+
+                      {/* Chi tiết thời hạn & lượt sử dụng */}
+                      <div className="bg-gray-50 rounded-xl p-2.5 text-[11px] space-y-1 text-gray-600">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1 text-gray-500">
+                            <Calendar size={12} />
+                            Thời hạn:
+                          </span>
+                          <span className="font-medium text-gray-800">
+                            {p.startAt || p.endAt
+                              ? `${p.startAt ? new Date(p.startAt).toLocaleDateString('vi-VN') : 'Bắt đầu'} - ${
+                                  p.endAt ? new Date(p.endAt).toLocaleDateString('vi-VN') : 'Vô thời hạn'
+                                }`
+                              : 'Vô thời hạn'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1 text-gray-500">
+                            <ShoppingBag size={12} />
+                            Lượt đã dùng:
+                          </span>
+                          <span className="font-bold text-gray-900">{p.usedCount} đơn hàng</span>
+                        </div>
+                      </div>
+
+                      {/* Nút hành động */}
+                      <div className="flex justify-end items-center gap-2 pt-1 border-t border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() => handleEditPromoClick(p)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold flex items-center gap-1 transition-colors"
+                        >
+                          <Edit2 size={12} /> Sửa
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingPromoId === p.id}
+                          onClick={() => handleDeletePromo(p)}
+                          className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 size={12} />
+                          {deletingPromoId === p.id ? 'Đang xóa...' : 'Xóa'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
 
         {/* ══════════════════════════════════════════════════════════════════════════
             TAB 4: NHẬT KÝ KHO (LOGS)
@@ -1190,6 +1500,213 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+      {/* ── Modal Tạo Mới Mã Giảm Giá ── */}
+      {showCreatePromoModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <Ticket size={16} />
+                </div>
+                <h3 className="text-base font-bold text-gray-900">Tạo Mã Giảm Giá Mới</h3>
+              </div>
+              <button
+                onClick={() => setShowCreatePromoModal(false)}
+                className="p-1 rounded-full text-gray-400 hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePromoSubmit} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                  Mã Voucher (Code) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: BREW20, WELCOME..."
+                  value={newPromoCode}
+                  onChange={(e) => setNewPromoCode(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-mono font-bold text-gray-900 uppercase focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                  Số tiền giảm (VND) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  required
+                  value={newPromoDiscount}
+                  onChange={(e) => setNewPromoDiscount(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-emerald-700 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Ngày bắt đầu</label>
+                  <input
+                    type="date"
+                    value={newPromoStartAt}
+                    onChange={(e) => setNewPromoStartAt(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Ngày kết thúc</label>
+                  <input
+                    type="date"
+                    value={newPromoEndAt}
+                    onChange={(e) => setNewPromoEndAt(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="createIsActive"
+                  checked={newPromoIsActive}
+                  onChange={(e) => setNewPromoIsActive(e.target.checked)}
+                  className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
+                />
+                <label htmlFor="createIsActive" className="text-xs font-medium text-gray-700 cursor-pointer">
+                  Kích hoạt mã ngay sau khi tạo
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePromoModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingCreatePromo}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {submittingCreatePromo ? 'Đang tạo...' : 'Tạo mã giảm giá'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Chỉnh Sửa Mã Giảm Giá ── */}
+      {editingPromo && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <Edit2 size={15} />
+                </div>
+                <h3 className="text-base font-bold text-gray-900">Sửa Mã Giảm Giá</h3>
+              </div>
+              <button
+                onClick={() => setEditingPromo(null)}
+                className="p-1 rounded-full text-gray-400 hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditPromoSubmit} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                  Mã Voucher (Code) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editPromoCode}
+                  onChange={(e) => setEditPromoCode(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-mono font-bold text-gray-900 uppercase focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                  Số tiền giảm (VND) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  required
+                  value={editPromoDiscount}
+                  onChange={(e) => setEditPromoDiscount(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-emerald-700 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Ngày bắt đầu</label>
+                  <input
+                    type="date"
+                    value={editPromoStartAt}
+                    onChange={(e) => setEditPromoStartAt(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Ngày kết thúc</label>
+                  <input
+                    type="date"
+                    value={editPromoEndAt}
+                    onChange={(e) => setEditPromoEndAt(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="editIsActive"
+                  checked={editPromoIsActive}
+                  onChange={(e) => setEditPromoIsActive(e.target.checked)}
+                  className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
+                />
+                <label htmlFor="editIsActive" className="text-xs font-medium text-gray-700 cursor-pointer">
+                  Kích hoạt mã này
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingPromo(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingEditPromo}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {submittingEditPromo ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

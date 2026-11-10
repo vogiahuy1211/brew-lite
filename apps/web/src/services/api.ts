@@ -17,7 +17,7 @@ export const apiClient = axios.create({
 const requestSessions = new WeakMap<InternalAxiosRequestConfig, SessionIdentity>();
 apiClient.interceptors.request.use((config) => {
   const path = config.url?.split('?')[0] ?? '';
-  const protectedRequest = /^\/(orders|payments|cart)(\/|$)/.test(path);
+  const protectedRequest = /^\/(orders|payments|cart|auth\/change-password)(\/|$)/.test(path);
   const authRequest = path === '/auth/login' || path === '/auth/register';
   config.headers.delete('Authorization');
   if (!protectedRequest && !authRequest) return config;
@@ -57,7 +57,7 @@ apiClient.interceptors.response.use((response) => {
     const identity = requestSessions.get(error.config);
     // Đăng nhập thất bại không làm mất hiệu lực của phiên hiện có.
     if (identity && error.response?.status === 401
-      && /^\/(orders|payments|cart)(\/|$)/.test(error.config.url ?? '')) invalidateSession(identity);
+      && /^\/(orders|payments|cart|auth\/change-password)(\/|$)/.test(error.config.url ?? '')) invalidateSession(identity);
   }
   return Promise.reject(error);
 });
@@ -88,6 +88,41 @@ export async function getToppings() {
 
 export async function validatePromotion(code: string) {
   const res = await apiClient.get(`/promotions/validate?code=${encodeURIComponent(code)}`);
+  return res.data;
+}
+
+export async function getAllPromotions() {
+  const res = await apiClient.get('/promotions');
+  return res.data;
+}
+
+export async function createPromotion(data: {
+  code: string;
+  discountAmount: number;
+  isActive?: boolean;
+  startAt?: string;
+  endAt?: string;
+}) {
+  const res = await apiClient.post('/promotions', data);
+  return res.data;
+}
+
+export async function updatePromotion(
+  id: string,
+  data: {
+    code?: string;
+    discountAmount?: number;
+    isActive?: boolean;
+    startAt?: string | null;
+    endAt?: string | null;
+  },
+) {
+  const res = await apiClient.patch(`/promotions/${id}`, data);
+  return res.data;
+}
+
+export async function deletePromotion(id: string) {
+  const res = await apiClient.delete(`/promotions/${id}`);
   return res.data;
 }
 
@@ -264,4 +299,9 @@ export async function checkCartLimits(items: Array<{
       limitingIngredient?: string;
     }>;
   };
+}
+
+export async function changePassword(data: { currentPassword: string; newPassword: string }) {
+  const res = await apiClient.post('/auth/change-password', data);
+  return res.data as { success: boolean; message: string };
 }

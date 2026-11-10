@@ -2,8 +2,9 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, User } from 'lucide-react';
+import { ChevronDown, User, KeyRound } from 'lucide-react';
 import { logout, useSession, verifySession } from '@/services/session';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const itemClass = 'flex min-h-11 w-full items-center rounded-xl px-3 py-2 text-left text-sm text-orange-100 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-orange-300';
 
@@ -19,6 +20,7 @@ function AccountDropdown({ status, email, logoutError }: {
   logoutError: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panelId = useId();
@@ -64,6 +66,10 @@ function AccountDropdown({ status, email, logoutError }: {
           {status === 'authenticated' && <>
             <p className="break-all border-b border-orange-100/10 px-3 py-3 text-sm text-orange-200">{email}</p>
             <Link href="/orders" className={itemClass} onClick={() => setOpen(false)}>Lịch sử đơn hàng</Link>
+            <button type="button" className={`${itemClass} flex items-center justify-between`} onClick={() => { setOpen(false); setShowChangePassword(true); }}>
+              <span>Đổi mật khẩu</span>
+              <KeyRound size={14} className="opacity-70" />
+            </button>
             <button type="button" className={itemClass} onClick={() => { logout(); }}>Đăng xuất</button>
           </>}
           {status === 'unavailable' && <>
@@ -72,6 +78,7 @@ function AccountDropdown({ status, email, logoutError }: {
           </>}
         </div>
       )}
+      <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </div>
   );
 }

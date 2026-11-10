@@ -4,9 +4,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Clock, ShoppingBag, LogOut, XCircle } from 'lucide-react';
+import { ArrowLeft, Clock, ShoppingBag, LogOut, XCircle, KeyRound } from 'lucide-react';
 import { getMyOrders, updateOrderStatus } from '@/services/api';
 import { logout, useSession } from '@/services/session';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 export default function OrderHistoryPage() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function OrderHistoryPage() {
   const user = useSession((state) => state.user);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const fetchOrders = () => {
     getMyOrders()
@@ -99,11 +101,23 @@ export default function OrderHistoryPage() {
         {/* Profile Card */}
         {user && (
           <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-3xl p-5 shadow-sm">
-            <p className="text-xs text-amber-100">Xin chào,</p>
-            <h3 className="text-base font-extrabold mt-0.5">{user.email}</h3>
-            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/20 text-xs font-bold">
-              <span>🌟 Điểm tích lũy (Loyalty):</span>
-              <span className="text-amber-200 text-sm font-black">{user.loyalty_points || 0} pts</span>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs text-amber-100">Xin chào,</p>
+                <h3 className="text-base font-extrabold mt-0.5">{user.email}</h3>
+                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/20 text-xs font-bold">
+                  <span>🌟 Điểm tích lũy (Loyalty):</span>
+                  <span className="text-amber-200 text-sm font-black">{user.loyalty_points || 0} pts</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangePassword(true)}
+                className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 active:scale-95 text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-sm"
+              >
+                <KeyRound size={13} />
+                <span>Đổi mật khẩu</span>
+              </button>
             </div>
           </div>
         )}
@@ -204,6 +218,11 @@ export default function OrderHistoryPage() {
           )}
         </div>
       </main>
+
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+      />
     </div>
   );
 }
