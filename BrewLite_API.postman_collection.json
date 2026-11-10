@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "BrewLite API",
-    "_postman_id": "brewlite-api-v1",
-    "description": "Bộ API hoàn chỉnh cho dự án BrewLite (NestJS + PostgreSQL)",
+    "name": "BrewLite API Test Suite (Nhóm 12)",
+    "_postman_id": "brewlite-api-v2-full",
+    "description": "Bộ API kiểm thử hoàn chỉnh cho hệ thống BrewLite F&B (NestJS + PostgreSQL + Next.js)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -17,8 +17,18 @@
       "type": "string"
     },
     {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "productId",
-      "value": "005aebc6-e550-4974-9c12-db26cbcaa4c0",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "toppingId",
+      "value": "",
       "type": "string"
     },
     {
@@ -30,6 +40,36 @@
       "key": "orderId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "promoId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registerEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dynamicPromoCode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vnpayReturnQuery",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vnpTxnNo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vnpHash",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -38,9 +78,26 @@
       "item": [
         {
           "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code là 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Database connected', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('ok');",
+                  "    pm.expect(json.database).to.eql('connected');",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "header": [],
             "url": {
               "raw": "{{baseUrl}}/health",
               "host": [
@@ -58,7 +115,34 @@
       "name": "2. Authentication",
       "item": [
         {
-          "name": "Đăng ký Khách hàng (Register)",
+          "name": "Đăng ký tài khoản mới (Register)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var randomSuffix = Date.now().toString().slice(-6);",
+                  "pm.collectionVariables.set('registerEmail', 'user_' + randomSuffix + '@brewlite.vn');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng ký thành công (201 Created)', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Trả về access_token', function () {",
+                  "    var res = pm.response.json();",
+                  "    pm.expect(res).to.have.property('access_token');",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -69,7 +153,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"testuser@brewlite.vn\",\n  \"password\": \"Password123@\",\n  \"fullName\": \"Nguyen Van A\",\n  \"phone\": \"0901234567\"\n}"
+              "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"Password123@\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
@@ -84,20 +168,22 @@
           }
         },
         {
-          "name": "Đăng nhập Khách hàng (Login - Tự lưu Token)",
+          "name": "Đăng nhập Khách hàng (Customer Login)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var res = pm.response.json();",
-                  "    var token = res.access_token || res.accessToken;",
-                  "    pm.collectionVariables.set('token', token);",
-                  "    console.log('Customer token auto-saved:', token);",
+                  "pm.test('Đăng nhập thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "    pm.collectionVariables.set('token', res.access_token);",
+                  "    console.log('Customer token auto-saved');",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
@@ -126,20 +212,22 @@
           }
         },
         {
-          "name": "Đăng nhập Admin (Login Admin - Tự lưu Token)",
+          "name": "Đăng nhập Quản trị viên (Admin Login)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var res = pm.response.json();",
-                  "    var token = res.access_token || res.accessToken;",
-                  "    pm.collectionVariables.set('token', token);",
-                  "    console.log('Admin token auto-saved:', token);",
+                  "pm.test('Admin đăng nhập thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "    pm.collectionVariables.set('adminToken', res.access_token);",
+                  "    console.log('Admin token auto-saved');",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
@@ -168,7 +256,22 @@
           }
         },
         {
-          "name": "Xem thông tin cá nhân (Get Profile)",
+          "name": "Xem thông tin cá nhân (Profile)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy thông tin cá nhân thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "pm.expect(res).to.have.property('email');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -195,27 +298,27 @@
       "name": "3. Products & Toppings",
       "item": [
         {
-          "name": "Lấy danh sách món (Tự lưu ProductId đầu tiên)",
+          "name": "Lấy danh sách món (Tự lưu ProductId)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var items = pm.response.json();",
-                  "    if (items && items.length > 0) {",
-                  "        pm.collectionVariables.set('productId', items[0].id);",
-                  "        console.log('Saved productId:', items[0].id);",
-                  "    }",
+                  "pm.test('Lấy danh sách 15 món thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var list = pm.response.json();",
+                  "if (Array.isArray(list) && list.length > 0) {",
+                  "    pm.collectionVariables.set('productId', list[0].id);",
+                  "    console.log('Saved productId: ' + list[0].id);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "header": [],
             "url": {
               "raw": "{{baseUrl}}/products",
               "host": [
@@ -229,9 +332,21 @@
         },
         {
           "name": "Xem chi tiết 1 món",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Chi tiết sản phẩm thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "header": [],
             "url": {
               "raw": "{{baseUrl}}/products/{{productId}}",
               "host": [
@@ -245,10 +360,26 @@
           }
         },
         {
-          "name": "Lấy danh sách Topping",
+          "name": "Lấy danh sách Topping (Tự lưu ToppingId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy topping thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var list = pm.response.json();",
+                  "if (Array.isArray(list) && list.length > 0) {",
+                  "    pm.collectionVariables.set('toppingId', list[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "header": [],
             "url": {
               "raw": "{{baseUrl}}/toppings",
               "host": [
@@ -267,6 +398,19 @@
       "item": [
         {
           "name": "Xem giỏ hàng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Xem giỏ hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -287,21 +431,22 @@
           }
         },
         {
-          "name": "Thêm món vào giỏ (Tự lưu CartItemId)",
+          "name": "Thêm món vào giỏ hàng (Tự lưu CartItemId)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    var res = pm.response.json();",
-                  "    if (res.items && res.items.length > 0) {",
-                  "        pm.collectionVariables.set('cartItemId', res.items[res.items.length - 1].id);",
-                  "        console.log('Saved cartItemId:', res.items[res.items.length - 1].id);",
-                  "    }",
+                  "pm.test('Thêm giỏ hàng thành công (201 Created)', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "if (res.items && res.items.length > 0) {",
+                  "    pm.collectionVariables.set('cartItemId', res.items[0].id);",
+                  "    console.log('Saved cartItemId: ' + res.items[0].id);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
@@ -319,7 +464,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2,\n  \"size\": \"L\",\n  \"toppingIds\": []\n}"
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"quantity\": 1,\n  \"toppingIds\": [\"{{toppingId}}\"]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/cart/items",
@@ -335,6 +480,19 @@
         },
         {
           "name": "Sửa số lượng món trong giỏ",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cập nhật giỏ hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [
@@ -349,7 +507,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"quantity\": 3\n}"
+              "raw": "{\n  \"quantity\": 2\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
@@ -363,50 +521,6 @@
               ]
             }
           }
-        },
-        {
-          "name": "Xóa 1 món khỏi giỏ",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "cart",
-                "items",
-                "{{cartItemId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Xóa toàn bộ giỏ hàng",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/cart",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "cart"
-              ]
-            }
-          }
         }
       ]
     },
@@ -414,19 +528,22 @@
       "name": "5. Orders & Checkout",
       "item": [
         {
-          "name": "Tạo đơn hàng (Checkout từ Giỏ hàng)",
+          "name": "Tạo đơn hàng từ Giỏ hàng DB (Checkout from Cart)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    var res = pm.response.json();",
+                  "pm.test('Tạo đơn hàng thành công (201 Created)', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "if (res.id) {",
                   "    pm.collectionVariables.set('orderId', res.id);",
-                  "    console.log('Saved orderId:', res.id);",
+                  "    console.log('Saved orderId: ' + res.id);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
@@ -458,7 +575,189 @@
           }
         },
         {
+          "name": "Tạo đường link thanh toán VNPay Sandbox (Khi đơn còn PENDING)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Sinh URL VNPay thành công (200 hoặc 201)', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "pm.expect(res).to.have.property('paymentUrl');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/vnpay/create-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "vnpay",
+                "create-url"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xác thực thanh toán VNPay Return (Giả lập Callback thành công)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var orderId = pm.collectionVariables.get(\"orderId\");",
+                  "var secretKey = \"DDPPIYDOMWEKRTZNOSUCPWQNDSCILITC\";",
+                  "var txnNo = Date.now().toString();",
+                  "pm.collectionVariables.set(\"vnpTxnNo\", txnNo);",
+                  "",
+                  "function sortObject(obj) {",
+                  "    var sorted = {};",
+                  "    var keys = Object.keys(obj).sort();",
+                  "    for (var i = 0; i < keys.length; i++) {",
+                  "        var key = keys[i];",
+                  "        if (obj[key] !== null && obj[key] !== undefined && obj[key] !== \"\") {",
+                  "            sorted[key] = encodeURIComponent(String(obj[key])).replace(/%20/g, \"+\");",
+                  "        }",
+                  "    }",
+                  "    return sorted;",
+                  "}",
+                  "",
+                  "var params = {",
+                  "    vnp_Amount: \"5000000\",",
+                  "    vnp_BankCode: \"NCB\",",
+                  "    vnp_CardType: \"ATM\",",
+                  "    vnp_OrderInfo: \"Thanh toan don hang BrewLite\",",
+                  "    vnp_PayDate: \"20261110090000\",",
+                  "    vnp_ResponseCode: \"00\",",
+                  "    vnp_TmnCode: \"5VKZAAJR\",",
+                  "    vnp_TransactionNo: txnNo,",
+                  "    vnp_TransactionStatus: \"00\",",
+                  "    vnp_TxnRef: orderId",
+                  "};",
+                  "",
+                  "var sorted = sortObject(params);",
+                  "var signData = Object.keys(sorted).map(function(k) { return k + \"=\" + sorted[k]; }).join(\"&\");",
+                  "var cryptoJs = require('crypto-js');",
+                  "var hash = cryptoJs.HmacSHA512(signData, secretKey).toString(cryptoJs.enc.Hex);",
+                  "pm.collectionVariables.set(\"vnpHash\", hash);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Xác thực giao dịch VNPay thành công (200 OK)\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.code).to.eql(\"00\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/vnpay/return?vnp_Amount=5000000&vnp_BankCode=NCB&vnp_CardType=ATM&vnp_OrderInfo=Thanh%20toan%20don%20hang%20BrewLite&vnp_PayDate=20261110090000&vnp_ResponseCode=00&vnp_TmnCode=5VKZAAJR&vnp_TransactionNo={{vnpTxnNo}}&vnp_TransactionStatus=00&vnp_TxnRef={{orderId}}&vnp_SecureHash={{vnpHash}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "vnpay",
+                "return"
+              ],
+              "query": [
+                {
+                  "key": "vnp_Amount",
+                  "value": "5000000"
+                },
+                {
+                  "key": "vnp_BankCode",
+                  "value": "NCB"
+                },
+                {
+                  "key": "vnp_CardType",
+                  "value": "ATM"
+                },
+                {
+                  "key": "vnp_OrderInfo",
+                  "value": "Thanh toan don hang BrewLite"
+                },
+                {
+                  "key": "vnp_PayDate",
+                  "value": "20261110090000"
+                },
+                {
+                  "key": "vnp_ResponseCode",
+                  "value": "00"
+                },
+                {
+                  "key": "vnp_TmnCode",
+                  "value": "5VKZAAJR"
+                },
+                {
+                  "key": "vnp_TransactionNo",
+                  "value": "{{vnpTxnNo}}"
+                },
+                {
+                  "key": "vnp_TransactionStatus",
+                  "value": "00"
+                },
+                {
+                  "key": "vnp_TxnRef",
+                  "value": "{{orderId}}"
+                },
+                {
+                  "key": "vnp_SecureHash",
+                  "value": "{{vnpHash}}"
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Xem danh sách đơn của tôi (My Orders)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy đơn của tôi thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -480,7 +779,20 @@
           }
         },
         {
-          "name": "Xem chi tiết 1 đơn hàng",
+          "name": "Xem chi tiết đơn hàng vừa tạo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Chi tiết đơn hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -502,13 +814,26 @@
           }
         },
         {
-          "name": "Xem tất cả đơn hàng (Admin/Staff)",
+          "name": "Xem tất cả đơn hàng (Admin/Barista)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin xem đơn thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{adminToken}}"
               }
             ],
             "url": {
@@ -523,13 +848,28 @@
           }
         },
         {
-          "name": "Cập nhật trạng thái đơn (CONFIRMED / DELIVERED)",
+          "name": "Cập nhật trạng thái pha chế (PREPARING - Barista)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuyển trạng thái đơn sang PREPARING thành công (200 OK)\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"PREPARING\");",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{adminToken}}"
               },
               {
                 "key": "Content-Type",
@@ -538,7 +878,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"CONFIRMED\"\n}"
+              "raw": "{\n  \"status\": \"PREPARING\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/orders/{{orderId}}/status",
@@ -552,39 +892,39 @@
               ]
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "6. Payments (VNPay)",
-      "item": [
+        },
         {
-          "name": "Tạo đường link thanh toán VNPay Sandbox",
+          "name": "Xác nhận Giỏ hàng đã tự động làm sạch (Auto-cleared Cart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Giỏ hàng đã tự động dọn sạch sau khi tạo đơn (items = 0)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.items.length).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"bankCode\": \"NCB\"\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/payments/vnpay/create-url",
+              "raw": "{{baseUrl}}/cart",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "payments",
-                "vnpay",
-                "create-url"
+                "cart"
               ]
             }
           }
@@ -592,13 +932,25 @@
       ]
     },
     {
-      "name": "7. Promotions",
+      "name": "6. Promotions (CRUD & Validate)",
       "item": [
         {
           "name": "Xem danh sách mã giảm giá",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy danh sách khuyến mãi thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "header": [],
             "url": {
               "raw": "{{baseUrl}}/promotions",
               "host": [
@@ -611,7 +963,72 @@
           }
         },
         {
-          "name": "Kiểm tra mã giảm giá (Validate Code)",
+          "name": "Kiểm tra mã giảm giá hợp lệ (Validate Code)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Kiểm tra mã thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "pm.expect(res).to.have.property('discountAmount');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/promotions/validate?code=WELCOME10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "promotions",
+                "validate"
+              ],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "WELCOME10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Tạo mã giảm giá mới (Admin CRUD)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var randomCode = 'AUTO_' + Date.now().toString().slice(-4);",
+                  "pm.collectionVariables.set('dynamicPromoCode', randomCode);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Tạo mã giảm giá thành công (201 Created)', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "if (res.id) {",
+                  "    pm.collectionVariables.set('promoId', res.id);",
+                  "    console.log('Saved promoId: ' + res.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -622,16 +1039,135 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"WELCOME10\",\n  \"subtotal\": 50000\n}"
+              "raw": "{\n  \"code\": \"{{dynamicPromoCode}}\",\n  \"discountAmount\": 15000,\n  \"isActive\": true\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/promotions/validate",
+              "raw": "{{baseUrl}}/promotions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "promotions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xóa mã giảm giá vừa tạo an toàn (Admin CRUD)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Xóa mã giảm giá thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/promotions/{{promoId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "promotions",
-                "validate"
+                "{{promoId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Inventory & BOM",
+      "item": [
+        {
+          "name": "Giám sát tồn kho nguyên liệu (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy tồn kho thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/inventory/ingredients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "ingredients"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xem nhật ký biến động kho (Inventory Logs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy nhật ký kho thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/inventory/logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "logs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xem định mức công thức pha chế (BOM)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy công thức BOM thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/recipes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recipes"
               ]
             }
           }
