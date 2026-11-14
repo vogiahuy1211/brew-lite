@@ -19,6 +19,44 @@
 
 ---
 
+## 1.1 Sơ đồ Use-Case Trọng tâm
+
+![Sơ đồ Use-Case Đặt và Thanh toán Đơn hàng](../../diagrams/usecase-checkout.svg)
+
+```mermaid
+flowchart LR
+    CUSTOMER(["👤 Khách hàng\n(Customer)"])
+    GATEWAY(["💳 Cổng thanh toán\n(VNPay / Mock)"])
+    BARISTA(["☕ Barista / Pha chế"])
+
+    subgraph SCOPE["🎯 Use-Case Trọng tâm: Đặt & Thanh toán đơn hàng"]
+        UC_MAIN(["(UC-CORE) Đặt & Thanh toán đơn hàng"])
+        UC_CART(["Xem & Đồng bộ giỏ hàng DB"])
+        UC_PROMO(["Kiểm tra & Khấu trừ mã giảm giá"])
+        UC_STOCK(["Kiểm tra tồn kho & Khóa Optimistic"])
+        UC_PAY(["Xử lý thanh toán Idempotent"])
+        UC_LOYALTY(["Tích lũy điểm thưởng Loyalty"])
+        UC_CLEAR(["Làm sạch giỏ hàng Database"])
+        UC_KDS(["Gửi thông báo pha chế đến KDS"])
+    end
+
+    CUSTOMER --- UC_MAIN
+
+    UC_MAIN -. "<<include>>" .-> UC_CART
+    UC_MAIN -. "<<include>>" .-> UC_STOCK
+    UC_MAIN -. "<<include>>" .-> UC_PAY
+    UC_MAIN -. "<<include>>" .-> UC_CLEAR
+    UC_MAIN -. "<<include>>" .-> UC_KDS
+
+    UC_PROMO -. "<<extend>>" .-> UC_MAIN
+    UC_PAY -. "<<include>>" .-> UC_LOYALTY
+
+    UC_PAY --- GATEWAY
+    UC_KDS --- BARISTA
+```
+
+---
+
 ## 2. Điều kiện Tiên quyết (Pre-conditions)
 
 - [ ] Khách hàng đã đăng nhập — JWT token hợp lệ và chưa hết hạn.

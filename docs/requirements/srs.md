@@ -14,27 +14,54 @@ Tài liệu này mô tả đầy đủ các yêu cầu chức năng (FR), yêu c
 
 ## 2. Sơ đồ Use-Case Tổng quát
 
-```
-                        ┌─────────────────────────────────────┐
-                        │           BrewLite System           │
-                        │                                     │
-  ┌──────────┐          │  (UC-01) Xem menu sản phẩm         │
-  │          │◄─────────┤  (UC-02) Xem chi tiết & tùy chọn  │
-  │ Khách    │          │  (UC-03) Quản lý giỏ hàng          │
-  │ hàng     │◄─────────┤  (UC-04) Đăng ký tài khoản        │
-  │          │◄─────────┤  (UC-05) Đăng nhập                 │
-  └──────────┘          │  (UC-06) Tạo đơn hàng              │
-                        │  (UC-07) Thanh toán                 │
-                        │  (UC-08) Xem lịch sử đơn hàng      │
-  ┌──────────┐          │                                     │
-  │ Payment  │◄─────────┤  (UC-07) Thanh toán (mock)         │
-  │ Gateway  │          │                                     │
-  └──────────┘          │                                     │
-                        │  (UC-09) Cập nhật trạng thái đơn   │
-  ┌──────────┐          │                                     │
-  │ Barista  │◄─────────┤  (UC-10) Xem đơn mới               │
-  └──────────┘          │                                     │
-                        └─────────────────────────────────────┘
+![Sơ đồ Use-Case Tổng quát Hệ thống BrewLite](../diagrams/usecase-system.svg)
+
+```mermaid
+flowchart LR
+    %% Actors
+    CUSTOMER(["👤 Khách hàng\n(Customer)"])
+    BARISTA(["☕ Nhân viên pha chế\n(Barista)"])
+    ADMIN(["👔 Quản trị viên\n(Admin)"])
+    GATEWAY(["💳 Cổng thanh toán\n(VNPay / Mock)"])
+
+    subgraph SYSTEM["🏛️ Hệ thống BrewLite System"]
+        UC01(["(UC-01) Xem thực đơn (Menu)"])
+        UC02(["(UC-02) Tùy biến món (Size & Topping)"])
+        UC03(["(UC-03) Quản lý giỏ hàng (DB Cart)"])
+        UC04(["(UC-04) Đăng ký / Đăng nhập JWT"])
+        UC05(["(UC-05) Đặt đơn hàng (Checkout)"])
+        UC06(["(UC-06) Áp dụng mã khuyến mãi"])
+        UC07(["(UC-07) Thanh toán không tiền mặt"])
+        UC08(["(UC-08) Tra cứu lịch sử đơn hàng"])
+        UC09(["(UC-09) Tiếp nhận & Cập nhật pha chế"])
+        UC10(["(UC-10) Quản lý định mức & Tồn kho BOM"])
+        UC11(["(UC-11) Nhập kho nguyên liệu (Restock)"])
+        UC12(["(UC-12) Quản lý chương trình khuyến mãi"])
+    end
+
+    %% Customer connects
+    CUSTOMER --- UC01
+    CUSTOMER --- UC02
+    CUSTOMER --- UC03
+    CUSTOMER --- UC04
+    CUSTOMER --- UC05
+    CUSTOMER --- UC08
+
+    %% Includes & Extends
+    UC05 -. "<<include>>" .-> UC07
+    UC06 -. "<<extend>>" .-> UC05
+
+    %% Gateway connects
+    UC07 --- GATEWAY
+
+    %% Barista connects
+    BARISTA --- UC09
+
+    %% Admin connects
+    ADMIN --- UC09
+    ADMIN --- UC10
+    ADMIN --- UC11
+    ADMIN --- UC12
 ```
 
 ---

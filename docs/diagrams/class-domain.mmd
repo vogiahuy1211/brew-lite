@@ -1,6 +1,16 @@
 classDiagram
     direction TB
 
+    %% ══════════════════════════════════════
+    %% ENUMS
+    %% ══════════════════════════════════════
+    class UserRole {
+        <<enumeration>>
+        CUSTOMER
+        STAFF
+        ADMIN
+    }
+
     class OrderStatus {
         <<enumeration>>
         PENDING
@@ -31,16 +41,47 @@ classDiagram
         L
     }
 
+    %% ══════════════════════════════════════
+    %% USER & CART DOMAIN
+    %% ══════════════════════════════════════
     class Users {
         +UUID id
         +String email
         +String password_hash
         +Int loyalty_points
+        +UserRole role
         +register(email, password) Users
         +login(email, password) String
         +addLoyaltyPoints(amount) void
     }
 
+    class Carts {
+        +UUID id
+        +UUID user_id
+        +DateTime created_at
+        +DateTime updated_at
+        +syncWithGuest(items) void
+        +clear() void
+    }
+
+    class CartItems {
+        +UUID id
+        +UUID cart_id
+        +UUID product_id
+        +ItemSize size
+        +String topping_signature
+        +Int quantity
+        +updateQuantity(qty) void
+    }
+
+    class CartItemToppings {
+        +UUID cart_item_id
+        +UUID topping_id
+    }
+
+    %% ══════════════════════════════════════
+    %% PRODUCT & BOM INVENTORY DOMAIN
+    %% ══════════════════════════════════════
     class Products {
         +UUID id
         +String name
@@ -49,6 +90,7 @@ classDiagram
         +Int stock
         +Int version
         +isAvailable(qty) Boolean
+        +calculateAvailableStock() Int
         +decreaseStock(qty, version) void
     }
 
@@ -58,6 +100,39 @@ classDiagram
         +Decimal price
     }
 
+    class Ingredients {
+        +UUID id
+        +String name
+        +String unit
+        +Decimal stock_quantity
+        +Decimal min_threshold
+        +Decimal cost_per_unit
+        +restock(amount) void
+        +isLowStock() Boolean
+    }
+
+    class RecipeItems {
+        +UUID id
+        +UUID product_id
+        +ItemSize size
+        +UUID topping_id
+        +UUID ingredient_id
+        +Decimal amount_needed
+    }
+
+    class InventoryLogs {
+        +UUID id
+        +UUID ingredient_id
+        +Decimal change_amount
+        +Decimal balance_after
+        +String reason
+        +UUID order_id
+        +DateTime created_at
+    }
+
+    %% ══════════════════════════════════════
+    %% ORDER & PAYMENT DOMAIN
+    %% ══════════════════════════════════════
     class Promotions {
         +UUID id
         +String code
@@ -79,6 +154,7 @@ classDiagram
         +Decimal final_amount
         +DateTime created_at
         +create(userId, items, promoCode) Orders
+        +updateStatus(nextStatus) void
         +cancel() void
     }
 
@@ -109,10 +185,19 @@ classDiagram
         +isDuplicate(key) Boolean
     }
 
+    %% ══════════════════════════════════════
+    %% DOMAIN SERVICES
+    %% ══════════════════════════════════════
     class OrderStateMachine {
         <<service>>
         +assertTransition(from OrderStatus, to OrderStatus) void
         +canTransition(from OrderStatus, to OrderStatus) Boolean
+    }
+
+    class InventoryService {
+        <<service>>
+        +deductOrderIngredients(tx, orderId) void
+        +calculateAvailableStock(product) Int
     }
 
     class MockPaymentService {
@@ -120,6 +205,20 @@ classDiagram
         +processPayment(amount, method) PaymentResult
     }
 
+    %% ══════════════════════════════════════
+    %% RELATIONSHIPS
+    %% ══════════════════════════════════════
+
+    %% User & Cart
+    Users "1" -- "0..1" Carts : owns
+    Users --> UserRole : role
+    Carts "1" *-- "0..*" CartItems : contains
+    CartItems "0..*" --> "1" Products : references
+    CartItems "1" *-- "0..*" CartItemToppings : has
+    CartItemToppings "0..*" --> "1" Toppings : references
+    CartItems --> ItemSize : size
+
+    %% User & Orders
     Users "1" --> "0..*" Orders : places
     Promotions "0..1" --> "0..*" Orders : applies to
     Orders "1" *-- "1..*" OrderItems : contains
@@ -131,6 +230,18 @@ classDiagram
     Payments --> PaymentMethod : method
     Payments --> PaymentStatus : status
     OrderItems --> ItemSize : size
+
+    %% Recipe & Inventory (BOM)
+    Products "1" -- "0..*" RecipeItems : defined by
+    Toppings "1" -- "0..*" RecipeItems : defined by
+    Ingredients "1" -- "0..*" RecipeItems : used in
+    RecipeItems --> ItemSize : size
+    Ingredients "1" -- "0..*" InventoryLogs : logged in
+    Orders "0..1" -- "0..*" InventoryLogs : triggers
+
+    %% Domain Services associations
     OrderStateMachine ..> OrderStatus : validates
-    OrderStateMachine ..> Orders : used by
+    OrderStateMachine ..> Orders : controls
+    InventoryService ..> Ingredients : deducts
+    InventoryService ..> RecipeItems : checks
     MockPaymentService ..> Payments : creates

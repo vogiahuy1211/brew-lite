@@ -36,6 +36,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     Promise.all([getProduct(id), getToppings()])
       .then(([prodData, topData]) => {
         setProduct(prodData);
+        setMaxAllowedQty(prodData.stock);
         setToppings(topData);
         setLoading(false);
       })
@@ -106,11 +107,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const totalPrice = unitPrice * qty;
 
   const handleAddToCart = async () => {
-    if (submitting || product.stock <= 0 || maxAllowedQty <= 0) return;
+    if (submitting || maxAllowedQty <= 0) return;
     setSubmitting(true);
     setActionError(null);
 
-    const res = await addItem(product, selectedSize, selectedToppings, qty);
+    const res = await addItem({ ...product, stock: maxAllowedQty }, selectedSize, selectedToppings, qty);
     setSubmitting(false);
 
     if (res.ok) {
@@ -181,16 +182,16 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <p className="text-xl font-extrabold text-amber-600 mt-1">
             {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.price)}
           </p>
-          {product.stock > 0 && maxAllowedQty > 0 ? (
+          {maxAllowedQty > 0 ? (
             <div className="flex items-center gap-1.5 mt-2">
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Sẵn sàng pha chế (còn {product.stock})
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Sẵn sàng pha chế (còn {maxAllowedQty} ly)
               </span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 mt-2">
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 rounded-full">
-                Tạm hết món (Hết hàng hoặc nguyên liệu)
+                Tạm hết món {limitingName ? `(Hết ${limitingName})` : '(Hết nguyên liệu pha chế)'}
               </span>
             </div>
           )}
@@ -295,7 +296,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <p className="text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg mt-2.5 font-medium text-right">
               {maxAllowedQty <= 0
                 ? `Hết nguyên liệu "${limitingName || 'thành phần'}" trong kho`
-                : `Tối đa ${maxAllowedQty} ly khả dụng trong kho`}
+                : `Kho nguyên liệu còn đủ pha tối đa ${maxAllowedQty} ly`}
             </p>
           )}
         </div>
@@ -312,7 +313,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
           <button
             onClick={handleAddToCart}
-            disabled={submitting || product.stock === 0 || maxAllowedQty <= 0}
+            disabled={submitting || maxAllowedQty <= 0}
             className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 active:scale-95 disabled:bg-gray-300 text-white font-bold rounded-2xl text-sm transition-all shadow-md"
           >
             {submitting ? 'Đang thêm...' : added ? '✓ Đã thêm vào giỏ' : 'Thêm vào giỏ'}

@@ -76,6 +76,51 @@ describe('ProductsService', () => {
       const result = await service.findAll();
       expect(typeof result[0].price).toBe('number');
     });
+
+    it('should synchronize stock with BOM ingredient availability', async () => {
+      const productWithBOM = [
+        {
+          ...mockProducts[0],
+          stock: 50,
+          RecipeItems: [
+            {
+              size: 'M',
+              amount_needed: 35,
+              Ingredients: { name: 'Sữa đặc', stock_quantity: 70 }, // 70 / 35 = 2 ly
+            },
+            {
+              size: 'M',
+              amount_needed: 20,
+              Ingredients: { name: 'Hạt cà phê', stock_quantity: 1000 }, // 1000 / 20 = 50 ly
+            },
+          ],
+        },
+      ];
+      mockPrismaService.products.findMany.mockResolvedValue(productWithBOM);
+
+      const result = await service.findAll();
+      expect(result[0].stock).toBe(2);
+    });
+
+    it('should return stock 0 when ingredient is out of stock', async () => {
+      const productOutOfStock = [
+        {
+          ...mockProducts[0],
+          stock: 50,
+          RecipeItems: [
+            {
+              size: 'M',
+              amount_needed: 35,
+              Ingredients: { name: 'Sữa đặc', stock_quantity: 0 },
+            },
+          ],
+        },
+      ];
+      mockPrismaService.products.findMany.mockResolvedValue(productOutOfStock);
+
+      const result = await service.findAll();
+      expect(result[0].stock).toBe(0);
+    });
   });
 
   describe('findOne()', () => {

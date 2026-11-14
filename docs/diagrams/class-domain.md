@@ -2,8 +2,8 @@
 
 > **Mức độ:** Domain / Business Layer  
 > **Công cụ:** Mermaid  
-> **Căn cứ:** `apps/api/prisma/schema.prisma`  
-> **Cập nhật:** 2026-10-18
+> **Căn cứ:** `apps/api/prisma/schema.prisma` (Khớp 100% CSDL 12 bảng)  
+> **Cập nhật:** 2026-11-14
 
 ## Sơ đồ
 
@@ -14,6 +14,13 @@ classDiagram
     %% ══════════════════════════════════════
     %% ENUMS
     %% ══════════════════════════════════════
+    class UserRole {
+        <<enumeration>>
+        CUSTOMER
+        STAFF
+        ADMIN
+    }
+
     class OrderStatus {
         <<enumeration>>
         PENDING
@@ -45,18 +52,46 @@ classDiagram
     }
 
     %% ══════════════════════════════════════
-    %% ENTITIES
+    %% USER & CART DOMAIN
     %% ══════════════════════════════════════
     class Users {
         +UUID id
         +String email
         +String password_hash
         +Int loyalty_points
+        +UserRole role
         +register(email, password) Users
         +login(email, password) String
         +addLoyaltyPoints(amount) void
     }
 
+    class Carts {
+        +UUID id
+        +UUID user_id
+        +DateTime created_at
+        +DateTime updated_at
+        +syncWithGuest(items) void
+        +clear() void
+    }
+
+    class CartItems {
+        +UUID id
+        +UUID cart_id
+        +UUID product_id
+        +ItemSize size
+        +String topping_signature
+        +Int quantity
+        +updateQuantity(qty) void
+    }
+
+    class CartItemToppings {
+        +UUID cart_item_id
+        +UUID topping_id
+    }
+
+    %% ══════════════════════════════════════
+    %% PRODUCT & BOM INVENTORY DOMAIN
+    %% ══════════════════════════════════════
     class Products {
         +UUID id
         +String name
@@ -65,6 +100,7 @@ classDiagram
         +Int stock
         +Int version
         +isAvailable(qty) Boolean
+        +calculateAvailableStock() Int
         +decreaseStock(qty, version) void
     }
 
@@ -74,6 +110,39 @@ classDiagram
         +Decimal price
     }
 
+    class Ingredients {
+        +UUID id
+        +String name
+        +String unit
+        +Decimal stock_quantity
+        +Decimal min_threshold
+        +Decimal cost_per_unit
+        +restock(amount) void
+        +isLowStock() Boolean
+    }
+
+    class RecipeItems {
+        +UUID id
+        +UUID product_id
+        +ItemSize size
+        +UUID topping_id
+        +UUID ingredient_id
+        +Decimal amount_needed
+    }
+
+    class InventoryLogs {
+        +UUID id
+        +UUID ingredient_id
+        +Decimal change_amount
+        +Decimal balance_after
+        +String reason
+        +UUID order_id
+        +DateTime created_at
+    }
+
+    %% ══════════════════════════════════════
+    %% ORDER & PAYMENT DOMAIN
+    %% ══════════════════════════════════════
     class Promotions {
         +UUID id
         +String code
@@ -95,7 +164,7 @@ classDiagram
         +Decimal final_amount
         +DateTime created_at
         +create(userId, items, promoCode) Orders
-        +assertTransition(from, to) void
+        +updateStatus(nextStatus) void
         +cancel() void
     }
 
@@ -123,91 +192,106 @@ classDiagram
         +Decimal amount
         +PaymentMethod method
         +PaymentStatus status
-        +process(orderId, method, key) Payments
         +isDuplicate(key) Boolean
     }
 
+    %% ══════════════════════════════════════
+    %% DOMAIN SERVICES
+    %% ══════════════════════════════════════
     class OrderStateMachine {
         <<service>>
-        +VALID_TRANSITIONS Map
         +assertTransition(from OrderStatus, to OrderStatus) void
         +canTransition(from OrderStatus, to OrderStatus) Boolean
+    }
+
+    class InventoryService {
+        <<service>>
+        +deductOrderIngredients(tx, orderId) void
+        +calculateAvailableStock(product) Int
     }
 
     class MockPaymentService {
         <<service>>
         +processPayment(amount, method) PaymentResult
-        +simulate(method) Boolean
     }
 
     %% ══════════════════════════════════════
-    %% QUAN HỆ
+    %% RELATIONSHIPS
     %% ══════════════════════════════════════
 
-    %% User → Orders (1 to many)
+    %% User & Cart
+    Users "1" -- "0..1" Carts : owns
+    Users --> UserRole : role
+    Carts "1" *-- "0..*" CartItems : contains
+    CartItems "0..*" --> "1" Products : references
+    CartItems "1" *-- "0..*" CartItemToppings : has
+    CartItemToppings "0..*" --> "1" Toppings : references
+    CartItems --> ItemSize : size
+
+    %% User & Orders
     Users "1" --> "0..*" Orders : places
-
-    %% Promotions → Orders (1 to many, optional)
     Promotions "0..1" --> "0..*" Orders : applies to
-
-    %% Orders → OrderItems (1 to many)
     Orders "1" *-- "1..*" OrderItems : contains
-
-    %% OrderItems → Products (many to 1)
     OrderItems "0..*" --> "1" Products : references
-
-    %% OrderItems → OrderItemToppings (1 to many)
     OrderItems "1" *-- "0..*" OrderItemToppings : has
-
-    %% OrderItemToppings → Toppings (many to 1)
     OrderItemToppings "0..*" --> "1" Toppings : references
-
-    %% Orders → Payments (1 to many)
     Orders "1" *-- "0..*" Payments : paid by
-
-    %% Enum associations
     Orders --> OrderStatus : status
     Payments --> PaymentMethod : method
     Payments --> PaymentStatus : status
     OrderItems --> ItemSize : size
 
-    %% Service dependencies
+    %% Recipe & Inventory (BOM)
+    Products "1" -- "0..*" RecipeItems : defined by
+    Toppings "1" -- "0..*" RecipeItems : defined by
+    Ingredients "1" -- "0..*" RecipeItems : used in
+    RecipeItems --> ItemSize : size
+    Ingredients "1" -- "0..*" InventoryLogs : logged in
+    Orders "0..1" -- "0..*" InventoryLogs : triggers
+
+    %% Domain Services associations
     OrderStateMachine ..> OrderStatus : validates
-    OrderStateMachine ..> Orders : used by
+    OrderStateMachine ..> Orders : controls
+    InventoryService ..> Ingredients : deducts
+    InventoryService ..> RecipeItems : checks
     MockPaymentService ..> Payments : creates
-    MockPaymentService ..> PaymentMethod : uses
 ```
 
 ## Mô tả Chi tiết các Lớp
 
-### Lớp nghiệp vụ (Entity Classes)
+### 1. Phân hệ Người dùng & Giỏ hàng (User & Cart Domain)
 
 | Lớp | Vai trò | Ghi chú quan trọng |
 |---|---|---|
-| `Users` | Tài khoản người dùng | `password_hash` không bao giờ trả về qua API; `loyalty_points` cộng tự động khi đơn PAID |
-| `Products` | Sản phẩm trong menu | Cột `version` dùng cho Optimistic Locking; `stock` không bao giờ âm |
-| `Toppings` | Topping có thể thêm vào món | Giá topping lưu snapshot tại thời điểm đặt trong `OrderItemToppings.price_at_purchase` |
-| `Promotions` | Mã khuyến mãi | Kiểm tra `is_active` + khoảng thời gian `start_at..end_at` trước khi áp dụng |
-| `Orders` | Đơn hàng | Trạng thái chuyển đổi được kiểm soát bởi `OrderStateMachine` |
-| `OrderItems` | Dòng sản phẩm trong đơn | Lưu `unit_price` snapshot để bảo toàn giá khi giá sản phẩm thay đổi sau |
-| `OrderItemToppings` | Topping đã chọn trong dòng món | Composite PK `(order_item_id, topping_id)` |
-| `Payments` | Bản ghi thanh toán | `idempotency_key` là UNIQUE — chống thanh toán trùng |
+| `Users` | Tài khoản người dùng | `password_hash` băm bcrypt; `loyalty_points` tích lũy tự động; `role` phân quyền (CUSTOMER, STAFF, ADMIN). |
+| `Carts` | Giỏ hàng lưu trữ Database | Mỗi người dùng có tối đa 1 giỏ hàng active gắn với `user_id`. Tự động đồng bộ từ Guest Cart khi đăng nhập. |
+| `CartItems` | Dòng sản phẩm trong giỏ hàng | Lưu `product_id`, `size`, `quantity` và `topping_signature` để nhóm sản phẩm cùng tùy chọn. |
+| `CartItemToppings` | Topping được chọn trong giỏ hàng | Bảng liên kết nhiều-nhiều giữa `CartItems` và `Toppings`. |
 
-### Lớp Dịch vụ (Service Classes)
+### 2. Phân hệ Thực đơn & Định mức Kho (Product & BOM Inventory Domain)
+
+| Lớp | Vai trò | Ghi chú quan trọng |
+|---|---|---|
+| `Products` | Sản phẩm trong menu | Quản lý `price`, `stock` và `version` (Optimistic Locking); tính toán số ly pha chế tối đa dựa trên định mức BOM. |
+| `Toppings` | Topping thêm vào đồ uống | Có giá độc lập và định mức công thức pha chế riêng. |
+| `Ingredients` | Nguyên liệu thô trong kho | Theo dõi tồn kho (`stock_quantity`), đơn vị đo lường (`unit`), ngưỡng cảnh báo (`min_threshold`). |
+| `RecipeItems` | Định mức công thức (BOM) | Quy định lượng nguyên liệu (`amount_needed`) cấu thành nên từng món nước theo Size (S/M/L) hoặc Topping. |
+| `InventoryLogs` | Nhật ký biến động kho | Lưu vết mọi lần trừ kho (khi pha chế đơn hàng `PREPARING`) hoặc nhập thêm nguyên liệu (`RESTOCK`). |
+
+### 3. Phân hệ Đơn hàng & Thanh toán (Order & Payment Domain)
+
+| Lớp | Vai trò | Ghi chú quan trọng |
+|---|---|---|
+| `Orders` | Đơn hàng của khách hàng | Trạng thái chuyển đổi qua Finite State Machine (`PENDING` $\to$ `PAID` $\to$ `PREPARING` $\to$ `READY` $\to$ `COMPLETED`). |
+| `OrderItems` | Dòng món trong đơn hàng | Lưu `unit_price` và `line_total` snapshot tại thời điểm đặt đơn. |
+| `OrderItemToppings` | Topping chọn trong dòng món | Lưu `price_at_purchase` snapshot để bảo đảm tính toàn vẹn tài chính. |
+| `Payments` | Giao dịch thanh toán | Chứa `idempotency_key` duy nhất để ngăn ngừa double-spending (trừ tiền 2 lần). |
+| `Promotions` | Mã ưu đãi giảm giá | Xác thực điều kiện kích hoạt, thời hạn hiệu lực và khấu trừ giảm giá vào đơn hàng. |
+
+### 4. Lớp Dịch vụ Miền (Domain Services)
 
 | Lớp | Vai trò | Phương thức chính |
 |---|---|---|
-| `OrderStateMachine` | Kiểm soát chuyển trạng thái đơn hàng | `assertTransition(from, to)` — ném Exception nếu chuyển trạng thái không hợp lệ |
-| `MockPaymentService` | Giả lập cổng thanh toán | `processPayment(amount, method)` — trả về `{ success: boolean }` |
-
-## Bảng Quan hệ
-
-| Quan hệ | Kiểu | Mô tả |
-|---|---|---|
-| `Users` → `Orders` | 1 — 0..* | Một user có thể có nhiều đơn |
-| `Orders` → `OrderItems` | 1 — 1..* | Một đơn phải có ít nhất 1 dòng món |
-| `OrderItems` → `Products` | \*..1 | Nhiều dòng món có thể tham chiếu cùng 1 sản phẩm |
-| `OrderItems` → `OrderItemToppings` | 1 — 0..* | Một dòng món có thể không có hoặc có nhiều topping |
-| `OrderItemToppings` → `Toppings` | \*..1 | Nhiều lựa chọn topping tham chiếu cùng 1 Topping |
-| `Orders` → `Payments` | 1 — 0..* | Một đơn có thể có nhiều lần thử thanh toán |
-| `Promotions` → `Orders` | 0..1 — 0..* | Một đơn có thể áp 0 hoặc 1 mã giảm giá |
+| `OrderStateMachine` | Kiểm soát vòng đời đơn hàng | `assertTransition(from, to)` — ngăn chặn chuyển trạng thái phi logic. |
+| `InventoryService` | Xử lý kho theo công thức BOM | `deductOrderIngredients(tx, orderId)` — trừ kho nguyên liệu tự động trong Database Transaction. |
+| `MockPaymentService` | Xử lý thanh toán Idempotent | `processPayment(amount, method)` — hỗ trợ thanh toán ví/thẻ và tích hợp VNPay Sandbox. |

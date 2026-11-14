@@ -59,13 +59,19 @@ BrewLite sử dụng kiến trúc **3 tầng phân tách rõ ràng** (Three-Tier
 │   │                                                         │   │
 │   │  Tables             Enums            Extensions         │   │
 │   │  Users              order_status     pgcrypto           │   │
-│   │  Products           payment_method   gen_random_uuid()  │   │
-│   │  Orders             payment_status                      │   │
-│   │  OrderItems         item_size                           │   │
-│   │  OrderItemToppings                   Indexes            │   │
-│   │  Payments           Constraints      users_email_key    │   │
-│   │  Toppings           FK + Cascade     payments_key_key   │   │
-│   │  Promotions                                             │   │
+│   │  Products           user_role        gen_random_uuid()  │   │
+│   │  Carts              payment_method                      │   │
+│   │  CartItems          payment_status   Indexes            │   │
+│   │  CartItemToppings   item_size        users_email_key    │   │
+│   │  Orders                              payments_key_key   │   │
+│   │  OrderItems         Constraints      cartitems_uq       │   │
+│   │  OrderItemToppings  FK + Cascade     promo_code_uq      │   │
+│   │  Payments                                               │   │
+│   │  Toppings           BOM Inventory                       │   │
+│   │  Promotions         Ingredients                         │   │
+│   │  Ingredients        RecipeItems                         │   │
+│   │  RecipeItems        InventoryLogs                       │   │
+│   │  InventoryLogs                                          │   │
 │   └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```

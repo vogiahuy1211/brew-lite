@@ -7,30 +7,31 @@ flowchart TD
         A6[Xem Giỏ hàng\nKiểm tra tổng tiền]
         A8{Đã đăng nhập?}
         A9[Đăng nhập / Đăng ký]
-        A11[Chọn phương thức\nVí / Thẻ]
-        A12[Nhấn Xác nhận trả]
+        A11[Chọn phương thức\nVí / Thẻ / VNPay]
+        A12[Nhấn Xác nhận thanh toán]
         A_RETRY{Thử lại?}
         A_END_FAIL([Hủy đơn])
-        A_END_OK([Nhận đồ uống])
+        A_WAIT[Chờ nhận thông báo pha chế]
+        A_END_OK([Nhận đồ uống tại quầy])
     end
 
-    subgraph FRONTEND["Frontend - Next.js"]
+    subgraph FRONTEND["Frontend - Next.js App Router"]
         B1[Gọi GET /products\nHiển thị Menu]
         B2{Tải thành công?}
         B3[Hiển thị Skeleton Loading]
-        B4[Hiển thị lưới sản phẩm]
+        B4[Hiển thị lưới sản phẩm & Tồn kho BOM]
         B_ERR[Hiển thị thông báo lỗi]
-        B5[Cập nhật Cart Store - Zustand]
-        B6[Tính tổng tiền]
+        B5[Lưu giỏ hàng DB / Zustand Cart]
+        B6[Tính tổng tiền & Áp mã giảm giá]
         B10[Sinh Idempotency-Key UUID v4]
-        B11[Gọi POST /orders]
+        B11[Gọi POST /orders\nLấy items từ Giỏ hàng DB]
         B13[Gọi POST /payments + Idempotency-Key]
-        B_CONFIRM[Hiển thị màn hình Xác nhận\nMã đơn + PAID]
+        B_CONFIRM[Hiển thị màn hình Xác nhận\nMã đơn + Trạng thái PAID]
         B_FAIL[Hiển thị thông báo\nThanh toán thất bại]
     end
 
     subgraph BACKEND["Backend - NestJS API"]
-        C1[Xác thực JWT]
+        C1[Xác thực JWT Guard]
         C2[Validate payload\nclass-validator]
         C3{Payload hợp lệ?}
         C4[Mở DB Transaction\nKiểm tra tồn kho\nOptimistic Lock]
@@ -38,20 +39,30 @@ flowchart TD
         C6[Tạo Orders PENDING\nTrừ stock + tăng version\nCommit Transaction]
         C7[Kiểm tra Idempotency-Key]
         C8{Key đã tồn tại?}
-        C9[Gọi Mock Payment Service]
+        C9[Xử lý thanh toán VNPay / Mock]
         C10{Thanh toán thành công?}
         C11[Cập nhật PAID\nCộng loyalty_points]
         C12[Cập nhật PAYMENT_FAILED]
-        C_DUP[Trả lại kết quả cũ]
-        C_STOCK_ERR[Rollback\nTrả 409 Conflict]
+        C_DUP[Trả lại kết quả giao dịch cũ]
+        C_STOCK_ERR[Rollback Transaction\nTrả 409 Conflict]
+        C_BOM[Thực thi Transaction:\nTrừ nguyên liệu kho BOM\nGhi InventoryLogs]
     end
 
-    subgraph DB["PostgreSQL"]
+    subgraph BARISTA["Barista / Pha chế (KDS Dashboard)"]
+        E1[Tiếp nhận đơn hàng PAID\ntrên màn hình pha chế]
+        E2[Chuyển trạng thái PREPARING]
+        E3[Hoàn tất pha chế\nChuyển trạng thái READY]
+        E4[Giao nước cho khách\nChuyển COMPLETED]
+    end
+
+    subgraph DB["PostgreSQL Database"]
         D1[(Lưu Orders + OrderItems)]
         D2[(Lưu Payments SUCCESS/FAILED)]
         D3[(Cập nhật Users.loyalty_points)]
+        D4[(Trừ Ingredients.stock_quantity\nLưu InventoryLogs)]
     end
 
+    %% Flow connections
     A1 --> B1
     B1 --> B3 --> B2
     B2 -->|Thành công| B4
@@ -70,9 +81,14 @@ flowchart TD
     B13 --> C7 --> C8
     C8 -->|Đã tồn tại| C_DUP
     C8 -->|Lần đầu| C9 --> C10
-    C10 -->|Thành công| C11 --> D2 --> D3 --> B_CONFIRM --> A_END_OK
+    C10 -->|Thành công| C11 --> D2 --> D3 --> B_CONFIRM
     C10 -->|Thất bại| C12 --> D2 --> B_FAIL
     C_DUP --> B_CONFIRM
     B_FAIL --> A_RETRY
     A_RETRY -->|Có| B10
     A_RETRY -->|Không| A_END_FAIL
+
+    %% Barista Fulfillment flow
+    B_CONFIRM --> A_WAIT
+    B_CONFIRM --> E1
+    E1 --> E2 --> C_BOM --> D4 --> E3 --> E4 --> A_END_OK

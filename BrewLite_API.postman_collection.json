@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "BrewLite API Test Suite (Nhóm 12)",
-    "_postman_id": "brewlite-api-v2-full",
-    "description": "Bộ API kiểm thử hoàn chỉnh cho hệ thống BrewLite F&B (NestJS + PostgreSQL + Next.js)",
+    "name": "BrewLite API Test Suite (Nhóm 12) - Complete Lifecycle",
+    "_postman_id": "brewlite-api-v3-full-lifecycle",
+    "description": "Bộ kiểm thử tự động toàn diện cho hệ thống BrewLite F&B (NestJS + PostgreSQL + Next.js). Bao gồm 10 quy trình nghiệp vụ chi tiết từ hạ tầng, xác thực, danh mục, giỏ hàng, kiểm tra định mức BOM, đặt hàng, thanh toán VNPay, pha chế trừ kho, quản lý kho và khuyến mãi CRUD.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -18,6 +18,16 @@
     },
     {
       "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registerEmail",
       "value": "",
       "type": "string"
     },
@@ -42,22 +52,17 @@
       "type": "string"
     },
     {
+      "key": "ingredientId",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "promoId",
       "value": "",
       "type": "string"
     },
     {
-      "key": "registerEmail",
-      "value": "",
-      "type": "string"
-    },
-    {
       "key": "dynamicPromoCode",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "vnpayReturnQuery",
       "value": "",
       "type": "string"
     },
@@ -74,20 +79,20 @@
   ],
   "item": [
     {
-      "name": "1. System Health",
+      "name": "01. System & Health",
       "item": [
         {
-          "name": "Health Check",
+          "name": "1.1 Kiểm tra trạng thái hệ thống & Database (Health Check)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code là 200 OK', function () {",
+                  "pm.test('Health check thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test('Database connected', function () {",
+                  "pm.test('Cơ sở dữ liệu kết nối tốt (database: connected)', function () {",
                   "    var json = pm.response.json();",
                   "    pm.expect(json.status).to.eql('ok');",
                   "    pm.expect(json.database).to.eql('connected');",
@@ -98,6 +103,7 @@
           ],
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/health",
               "host": [
@@ -112,10 +118,10 @@
       ]
     },
     {
-      "name": "2. Authentication",
+      "name": "02. Authentication & Account Management",
       "item": [
         {
-          "name": "Đăng ký tài khoản mới (Register)",
+          "name": "2.1 Đăng ký tài khoản Khách hàng mới (Register)",
           "event": [
             {
               "listen": "prerequest",
@@ -132,12 +138,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Đăng ký thành công (201 Created)', function () {",
+                  "pm.test('Đăng ký tài khoản mới thành công (201 Created)', function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
-                  "pm.test('Trả về access_token', function () {",
+                  "pm.test('Trả về token đăng ký', function () {",
                   "    var res = pm.response.json();",
                   "    pm.expect(res).to.have.property('access_token');",
+                  "    pm.collectionVariables.set('registerToken', res.access_token);",
                   "});"
                 ]
               }
@@ -168,14 +175,57 @@
           }
         },
         {
-          "name": "Đăng nhập Khách hàng (Customer Login)",
+          "name": "2.2 Đổi mật khẩu tài khoản (Change Password)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Đăng nhập thành công (200 OK)', function () {",
+                  "pm.test('Đổi mật khẩu thành công (200 OK hoặc 201)', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{registerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123@\",\n  \"newPassword\": \"NewPassword123@\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.3 Đăng nhập Khách hàng chuẩn (Customer Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Khách hàng thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "var res = pm.response.json();",
@@ -212,7 +262,7 @@
           }
         },
         {
-          "name": "Đăng nhập Quản trị viên (Admin Login)",
+          "name": "2.4 Đăng nhập Quản trị viên Admin (Admin Login)",
           "event": [
             {
               "listen": "test",
@@ -256,7 +306,7 @@
           }
         },
         {
-          "name": "Xem thông tin cá nhân (Profile)",
+          "name": "2.5 Xem thông tin cá nhân khách hàng (Profile)",
           "event": [
             {
               "listen": "test",
@@ -265,9 +315,9 @@
                 "exec": [
                   "pm.test('Lấy thông tin cá nhân thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
-                  "});",
-                  "var res = pm.response.json();",
-                  "pm.expect(res).to.have.property('email');"
+                  "    var user = pm.response.json();",
+                  "    pm.expect(user.email).to.eql('customer@brewlite.vn');",
+                  "});"
                 ]
               }
             }
@@ -295,10 +345,10 @@
       ]
     },
     {
-      "name": "3. Products & Toppings",
+      "name": "03. Menu & Products Catalog",
       "item": [
         {
-          "name": "Lấy danh sách món (Tự lưu ProductId)",
+          "name": "3.1 Lấy danh sách 15 món thực đơn (Products)",
           "event": [
             {
               "listen": "test",
@@ -307,18 +357,19 @@
                 "exec": [
                   "pm.test('Lấy danh sách 15 món thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
-                  "});",
-                  "var list = pm.response.json();",
-                  "if (Array.isArray(list) && list.length > 0) {",
-                  "    pm.collectionVariables.set('productId', list[0].id);",
-                  "    console.log('Saved productId: ' + list[0].id);",
-                  "}"
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "    pm.expect(json.length).to.be.at.least(1);",
+                  "    pm.collectionVariables.set('productId', json[0].id);",
+                  "    console.log('Saved productId:', json[0].id);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/products",
               "host": [
@@ -331,15 +382,18 @@
           }
         },
         {
-          "name": "Xem chi tiết 1 món",
+          "name": "3.2 Xem chi tiết 1 món cụ thể (Product Detail)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Chi tiết sản phẩm thành công (200 OK)', function () {",
+                  "pm.test('Lấy chi tiết món thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
+                  "    var item = pm.response.json();",
+                  "    pm.expect(item).to.have.property('name');",
+                  "    pm.expect(item).to.have.property('price');",
                   "});"
                 ]
               }
@@ -347,6 +401,7 @@
           ],
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/products/{{productId}}",
               "host": [
@@ -360,26 +415,28 @@
           }
         },
         {
-          "name": "Lấy danh sách Topping (Tự lưu ToppingId)",
+          "name": "3.3 Lấy danh sách Topping (Toppings)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Lấy topping thành công (200 OK)', function () {",
+                  "pm.test('Lấy danh sách Topping thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
-                  "});",
-                  "var list = pm.response.json();",
-                  "if (Array.isArray(list) && list.length > 0) {",
-                  "    pm.collectionVariables.set('toppingId', list[0].id);",
-                  "}"
+                  "    var toppings = pm.response.json();",
+                  "    pm.expect(toppings).to.be.an('array');",
+                  "    pm.expect(toppings.length).to.be.at.least(1);",
+                  "    pm.collectionVariables.set('toppingId', toppings[0].id);",
+                  "    console.log('Saved toppingId:', toppings[0].id);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/toppings",
               "host": [
@@ -394,10 +451,10 @@
       ]
     },
     {
-      "name": "4. Shopping Cart (Giỏ hàng DB)",
+      "name": "04. Shopping Cart Full Workflow",
       "item": [
         {
-          "name": "Xem giỏ hàng",
+          "name": "4.1 Xem giỏ hàng ban đầu",
           "event": [
             {
               "listen": "test",
@@ -406,6 +463,8 @@
                 "exec": [
                   "pm.test('Xem giỏ hàng thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('items');",
                   "});"
                 ]
               }
@@ -431,7 +490,7 @@
           }
         },
         {
-          "name": "Thêm món vào giỏ hàng (Tự lưu CartItemId)",
+          "name": "4.2 Thêm món vào giỏ hàng DB (Add to Cart)",
           "event": [
             {
               "listen": "test",
@@ -440,12 +499,178 @@
                 "exec": [
                   "pm.test('Thêm giỏ hàng thành công (201 Created)', function () {",
                   "    pm.response.to.have.status(201);",
-                  "});",
-                  "var res = pm.response.json();",
-                  "if (res.items && res.items.length > 0) {",
-                  "    pm.collectionVariables.set('cartItemId', res.items[0].id);",
-                  "    console.log('Saved cartItemId: ' + res.items[0].id);",
-                  "}"
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.items.length).to.be.at.least(1);",
+                  "    var latestItem = json.items[json.items.length - 1];",
+                  "    pm.collectionVariables.set('cartItemId', latestItem.id);",
+                  "    console.log('Saved cartItemId:', latestItem.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"quantity\": 2,\n  \"toppingIds\": [\"{{toppingId}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cart/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "items"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.3 Sửa số lượng món trong giỏ (Update Quantity)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cập nhật giỏ hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "items",
+                "{{cartItemId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.4 Đồng bộ giỏ hàng từ Guest lên Server (Sync Cart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đồng bộ giỏ hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"quantity\": 1,\n      \"toppingIds\": []\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cart/sync",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "sync"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.5 Xóa 1 món thử nghiệm khỏi giỏ hàng (Remove Item)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Xóa món khỏi giỏ hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "items",
+                "{{cartItemId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.6 Thêm món chuẩn vào giỏ hàng để chuẩn bị Checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Chuẩn bị giỏ hàng thành công (201 Created)', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
                 ]
               }
             }
@@ -477,16 +702,52 @@
               ]
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "name": "05. Recipes & BOM Capacity Check",
+      "item": [
         {
-          "name": "Sửa số lượng món trong giỏ",
+          "name": "5.1 Xem toàn bộ công thức định mức BOM (Recipes)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Cập nhật giỏ hàng thành công (200 OK)', function () {",
+                  "pm.test('Lấy công thức BOM thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recipes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recipes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.2 Xem định mức công thức của 1 món cụ thể",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy công thức món thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
                   "});"
                 ]
@@ -494,12 +755,41 @@
             }
           ],
           "request": {
-            "method": "PATCH",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recipes/product/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recipes",
+                "product",
+                "{{productId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.3 Kiểm tra giới hạn số ly khả dụng theo BOM trước khi đặt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Kiểm tra giới hạn kho thành công (200 hoặc 201)', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "    var res = pm.response.json();",
+                  "    pm.expect(res).to.have.property('limits');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -507,17 +797,16 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"quantity\": 2\n}"
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"qty\": 1,\n      \"toppingIds\": [\"{{toppingId}}\"]\n    }\n  ]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
+              "raw": "{{baseUrl}}/recipes/check-limits",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "cart",
-                "items",
-                "{{cartItemId}}"
+                "recipes",
+                "check-limits"
               ]
             }
           }
@@ -525,10 +814,10 @@
       ]
     },
     {
-      "name": "5. Orders & Checkout",
+      "name": "06. Orders & Checkout Workflow",
       "item": [
         {
-          "name": "Tạo đơn hàng từ Giỏ hàng DB (Checkout from Cart)",
+          "name": "6.1 Tạo đơn hàng từ Giỏ hàng DB (Checkout from Cart)",
           "event": [
             {
               "listen": "test",
@@ -537,12 +826,12 @@
                 "exec": [
                   "pm.test('Tạo đơn hàng thành công (201 Created)', function () {",
                   "    pm.response.to.have.status(201);",
-                  "});",
-                  "var res = pm.response.json();",
-                  "if (res.id) {",
-                  "    pm.collectionVariables.set('orderId', res.id);",
-                  "    console.log('Saved orderId: ' + res.id);",
-                  "}"
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('id');",
+                  "    pm.expect(json.status).to.eql('PENDING');",
+                  "    pm.collectionVariables.set('orderId', json.id);",
+                  "    console.log('Saved orderId:', json.id);",
+                  "});"
                 ]
               }
             }
@@ -575,7 +864,196 @@
           }
         },
         {
-          "name": "Tạo đường link thanh toán VNPay Sandbox (Khi đơn còn PENDING)",
+          "name": "6.2 Xem danh sách đơn của tôi (My Orders)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy đơn của tôi thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.3 Xem chi tiết đơn hàng vừa tạo (Order Detail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Chi tiết đơn hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var order = pm.response.json();",
+                  "    pm.expect(order.id).to.eql(pm.collectionVariables.get('orderId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.4 Xem bảng phân rã BOM định mức của đơn hàng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy bảng phân rã BOM đơn hàng thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var res = pm.response.json();",
+                  "    pm.expect(res).to.have.property('items');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/recipes/order/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recipes",
+                "order",
+                "{{orderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.5 Admin/Barista xem tất cả đơn hàng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin xem đơn thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.6 Xác nhận Giỏ hàng đã tự động làm sạch sau khi tạo đơn",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Giỏ hàng đã tự động dọn sạch sau khi tạo đơn (items = 0)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.items.length).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Payments Workflow",
+      "item": [
+        {
+          "name": "7.1 Tạo link thanh toán VNPay Sandbox khi đơn PENDING",
           "event": [
             {
               "listen": "test",
@@ -584,9 +1062,10 @@
                 "exec": [
                   "pm.test('Sinh URL VNPay thành công (200 hoặc 201)', function () {",
                   "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "});",
-                  "var res = pm.response.json();",
-                  "pm.expect(res).to.have.property('paymentUrl');"
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('paymentUrl');",
+                  "    pm.expect(json.paymentUrl).to.include('sandbox.vnpayment.vn');",
+                  "});"
                 ]
               }
             }
@@ -605,7 +1084,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{orderId}}\"\n}"
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"bankCode\": \"NCB\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/payments/vnpay/create-url",
@@ -621,48 +1100,48 @@
           }
         },
         {
-          "name": "Xác thực thanh toán VNPay Return (Giả lập Callback thành công)",
+          "name": "7.2 Xác thực thanh toán VNPay Return (Giả lập Callback thành công)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "var orderId = pm.collectionVariables.get(\"orderId\");",
-                  "var secretKey = \"DDPPIYDOMWEKRTZNOSUCPWQNDSCILITC\";",
+                  "var orderId = pm.collectionVariables.get('orderId');",
+                  "var secretKey = 'DDPPIYDOMWEKRTZNOSUCPWQNDSCILITC';",
                   "var txnNo = Date.now().toString();",
-                  "pm.collectionVariables.set(\"vnpTxnNo\", txnNo);",
+                  "pm.collectionVariables.set('vnpTxnNo', txnNo);",
                   "",
                   "function sortObject(obj) {",
                   "    var sorted = {};",
                   "    var keys = Object.keys(obj).sort();",
                   "    for (var i = 0; i < keys.length; i++) {",
                   "        var key = keys[i];",
-                  "        if (obj[key] !== null && obj[key] !== undefined && obj[key] !== \"\") {",
-                  "            sorted[key] = encodeURIComponent(String(obj[key])).replace(/%20/g, \"+\");",
+                  "        if (obj[key] !== null && obj[key] !== undefined && obj[key] !== '') {",
+                  "            sorted[key] = encodeURIComponent(String(obj[key])).replace(/%20/g, '+');",
                   "        }",
                   "    }",
                   "    return sorted;",
                   "}",
                   "",
                   "var params = {",
-                  "    vnp_Amount: \"5000000\",",
-                  "    vnp_BankCode: \"NCB\",",
-                  "    vnp_CardType: \"ATM\",",
-                  "    vnp_OrderInfo: \"Thanh toan don hang BrewLite\",",
-                  "    vnp_PayDate: \"20261110090000\",",
-                  "    vnp_ResponseCode: \"00\",",
-                  "    vnp_TmnCode: \"5VKZAAJR\",",
+                  "    vnp_Amount: '5000000',",
+                  "    vnp_BankCode: 'NCB',",
+                  "    vnp_CardType: 'ATM',",
+                  "    vnp_OrderInfo: 'Thanh toan don hang BrewLite',",
+                  "    vnp_PayDate: '20261110090000',",
+                  "    vnp_ResponseCode: '00',",
+                  "    vnp_TmnCode: '5VKZAAJR',",
                   "    vnp_TransactionNo: txnNo,",
-                  "    vnp_TransactionStatus: \"00\",",
+                  "    vnp_TransactionStatus: '00',",
                   "    vnp_TxnRef: orderId",
                   "};",
                   "",
                   "var sorted = sortObject(params);",
-                  "var signData = Object.keys(sorted).map(function(k) { return k + \"=\" + sorted[k]; }).join(\"&\");",
+                  "var signData = Object.keys(sorted).map(function(k) { return k + '=' + sorted[k]; }).join('&');",
                   "var cryptoJs = require('crypto-js');",
                   "var hash = cryptoJs.HmacSHA512(signData, secretKey).toString(cryptoJs.enc.Hex);",
-                  "pm.collectionVariables.set(\"vnpHash\", hash);"
+                  "pm.collectionVariables.set('vnpHash', hash);"
                 ]
               }
             },
@@ -671,11 +1150,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Xác thực giao dịch VNPay thành công (200 OK)\", function () {",
+                  "pm.test('Xác thực giao dịch VNPay thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
                   "    var json = pm.response.json();",
                   "    pm.expect(json.success).to.eql(true);",
-                  "    pm.expect(json.code).to.eql(\"00\");",
+                  "    pm.expect(json.code).to.eql('00');",
                   "});"
                 ]
               }
@@ -744,50 +1223,17 @@
           }
         },
         {
-          "name": "Xem danh sách đơn của tôi (My Orders)",
+          "name": "7.3 Xác nhận đơn hàng đã chuyển trạng thái sang PAID",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Lấy đơn của tôi thành công (200 OK)', function () {",
+                  "pm.test('Trạng thái đơn hàng đã là PAID', function () {",
                   "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/orders/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "orders",
-                "me"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Xem chi tiết đơn hàng vừa tạo",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Chi tiết đơn hàng thành công (200 OK)', function () {",
-                  "    pm.response.to.have.status(200);",
+                  "    var order = pm.response.json();",
+                  "    pm.expect(order.status).to.eql('PAID');",
                   "});"
                 ]
               }
@@ -812,53 +1258,24 @@
               ]
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "name": "08. Barista Fulfillment & State Machine",
+      "item": [
         {
-          "name": "Xem tất cả đơn hàng (Admin/Barista)",
+          "name": "8.1 Barista tiếp nhận và bắt đầu pha chế (PREPARING)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Admin xem đơn thành công (200 OK)', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/orders",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "orders"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Cập nhật trạng thái pha chế (PREPARING - Barista)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Chuyển trạng thái đơn sang PREPARING thành công (200 OK)\", function () {",
+                  "pm.test('Chuyển trạng thái đơn sang PREPARING thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
                   "    var json = pm.response.json();",
-                  "    pm.expect(json.status).to.eql(\"PREPARING\");",
+                  "    pm.expect(json.status).to.eql('PREPARING');",
                   "});"
                 ]
               }
@@ -894,17 +1311,117 @@
           }
         },
         {
-          "name": "Xác nhận Giỏ hàng đã tự động làm sạch (Auto-cleared Cart)",
+          "name": "8.2 Barista pha chế xong - Sẵn sàng giao (READY)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Giỏ hàng đã tự động dọn sạch sau khi tạo đơn (items = 0)', function () {",
+                  "pm.test('Chuyển trạng thái đơn sang READY thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
                   "    var json = pm.response.json();",
-                  "    pm.expect(json.items.length).to.eql(0);",
+                  "    pm.expect(json.status).to.eql('READY');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"READY\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "8.3 Khách nhận món - Hoàn tất đơn hàng (COMPLETED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Hoàn tất đơn hàng sang COMPLETED thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('COMPLETED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Inventory Management & Restock",
+      "item": [
+        {
+          "name": "9.1 Giám sát tồn kho nguyên liệu (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy tồn kho thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var ingredients = pm.response.json();",
+                  "    pm.expect(ingredients).to.be.an('array');",
+                  "    pm.expect(ingredients.length).to.be.at.least(1);",
+                  "    pm.collectionVariables.set('ingredientId', ingredients[0].id);",
+                  "    console.log('Saved ingredientId:', ingredients[0].id);",
                   "});"
                 ]
               }
@@ -915,16 +1432,101 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{adminToken}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/cart",
+              "raw": "{{baseUrl}}/inventory/ingredients",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "cart"
+                "inventory",
+                "ingredients"
+              ]
+            }
+          }
+        },
+        {
+          "name": "9.2 Admin nhập thêm nguyên liệu vào kho (Restock)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Nhập kho nguyên liệu thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var res = pm.response.json();",
+                  "    pm.expect(res).to.have.property('stock_quantity');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500,\n  \"reason\": \"Nhập thêm kho định kỳ kiểm thử API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inventory/ingredients/{{ingredientId}}/restock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "ingredients",
+                "{{ingredientId}}",
+                "restock"
+              ]
+            }
+          }
+        },
+        {
+          "name": "9.3 Xem nhật ký biến động kho sau pha chế & nhập kho (Logs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lấy nhật ký kho thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var logs = pm.response.json();",
+                  "    pm.expect(logs).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventory/logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "logs"
               ]
             }
           }
@@ -932,10 +1534,10 @@
       ]
     },
     {
-      "name": "6. Promotions (CRUD & Validate)",
+      "name": "10. Promotions Management (Admin CRUD)",
       "item": [
         {
-          "name": "Xem danh sách mã giảm giá",
+          "name": "10.1 Xem danh sách tất cả mã giảm giá",
           "event": [
             {
               "listen": "test",
@@ -944,6 +1546,8 @@
                 "exec": [
                   "pm.test('Lấy danh sách khuyến mãi thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
                   "});"
                 ]
               }
@@ -951,6 +1555,7 @@
           ],
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/promotions",
               "host": [
@@ -963,24 +1568,26 @@
           }
         },
         {
-          "name": "Kiểm tra mã giảm giá hợp lệ (Validate Code)",
+          "name": "10.2 Kiểm tra mã giảm giá hợp lệ (Validate Code)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Kiểm tra mã thành công (200 OK)', function () {",
+                  "pm.test('Kiểm tra mã WELCOME10 thành công (200 OK)', function () {",
                   "    pm.response.to.have.status(200);",
-                  "});",
-                  "var res = pm.response.json();",
-                  "pm.expect(res).to.have.property('discountAmount');"
+                  "    var res = pm.response.json();",
+                  "    pm.expect(res.code).to.eql('WELCOME10');",
+                  "    pm.expect(res.discountAmount).to.eql(10000);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/promotions/validate?code=WELCOME10",
               "host": [
@@ -1000,14 +1607,14 @@
           }
         },
         {
-          "name": "Tạo mã giảm giá mới (Admin CRUD)",
+          "name": "10.3 Admin tạo mã giảm giá mới (Create Promotion)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "var randomCode = 'AUTO_' + Date.now().toString().slice(-4);",
+                  "var randomCode = 'AUTO_' + Date.now().toString().slice(-5);",
                   "pm.collectionVariables.set('dynamicPromoCode', randomCode);"
                 ]
               }
@@ -1019,12 +1626,11 @@
                 "exec": [
                   "pm.test('Tạo mã giảm giá thành công (201 Created)', function () {",
                   "    pm.response.to.have.status(201);",
-                  "});",
-                  "var res = pm.response.json();",
-                  "if (res.id) {",
+                  "    var res = pm.response.json();",
+                  "    pm.expect(res).to.have.property('id');",
                   "    pm.collectionVariables.set('promoId', res.id);",
-                  "    console.log('Saved promoId: ' + res.id);",
-                  "}"
+                  "    console.log('Saved promoId:', res.id);",
+                  "});"
                 ]
               }
             }
@@ -1032,6 +1638,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -1053,7 +1663,52 @@
           }
         },
         {
-          "name": "Xóa mã giảm giá vừa tạo an toàn (Admin CRUD)",
+          "name": "10.4 Admin cập nhật mã giảm giá (Update Promotion)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cập nhật mã giảm giá thành công (200 OK)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var res = pm.response.json();",
+                  "    pm.expect(res.discountAmount).to.eql(20000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"discountAmount\": 20000,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promotions/{{promoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "promotions",
+                "{{promoId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "10.5 Admin xóa mã giảm giá thử nghiệm (Delete Promotion)",
           "event": [
             {
               "listen": "test",
@@ -1069,6 +1724,12 @@
           ],
           "request": {
             "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/promotions/{{promoId}}",
               "host": [
@@ -1077,97 +1738,6 @@
               "path": [
                 "promotions",
                 "{{promoId}}"
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "7. Inventory & BOM",
-      "item": [
-        {
-          "name": "Giám sát tồn kho nguyên liệu (Admin)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Lấy tồn kho thành công (200 OK)', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/inventory/ingredients",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "inventory",
-                "ingredients"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Xem nhật ký biến động kho (Inventory Logs)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Lấy nhật ký kho thành công (200 OK)', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/inventory/logs",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "inventory",
-                "logs"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Xem định mức công thức pha chế (BOM)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Lấy công thức BOM thành công (200 OK)', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/recipes",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "recipes"
               ]
             }
           }
