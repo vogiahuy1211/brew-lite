@@ -1,0 +1,52 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam state {
+  BackgroundColor<<Initial>> #E1F5FE
+  BorderColor<<Initial>> #0288D1
+  BackgroundColor<<Paid>> #E8F5E9
+  BorderColor<<Paid>> #388E3C
+  BackgroundColor<<Prep>> #FFF3E0
+  BorderColor<<Prep>> #F57C00
+  BackgroundColor<<Ready>> #EDE7F6
+  BorderColor<<Ready>> #7E57C2
+  BackgroundColor<<Final>> #C8E6C9
+  BorderColor<<Final>> #2E7D32
+  BackgroundColor<<Failed>> #FFEBEE
+  BorderColor<<Failed>> #D32F2F
+  BackgroundColor<<Cancel>> #ECEFF1
+  BorderColor<<Cancel>> #546E7A
+}
+
+[*] --> PENDING : Khách bấm Đặt hàng (POST /api/orders)
+
+state PENDING <<Initial>> : Đơn hàng mới tạo\nChờ xác nhận thanh toán
+state PAID <<Paid>> : Đã thanh toán thành công qua VNPay/Ví\nTự động tích điểm Loyalty
+state PREPARING <<Prep>> : Admin/Nhân viên bắt đầu pha chế\n**Tự động trừ kho nguyên liệu (BOM)**\n**Khóa quyền hủy đơn của khách**
+state READY <<Ready>> : Món nước đã hoàn tất\nMời khách đến quầy nhận nước
+state COMPLETED <<Final>> : Khách đã nhận đồ uống\n**Trạng thái đóng (Final)**
+state PAYMENT_FAILED <<Failed>> : Lỗi giao dịch thẻ / Người dùng hủy cổng VNPay
+state CANCELLED <<Cancel>> : Đơn hàng đã hủy bởi Khách hoặc Admin\n**Trạng thái đóng (Final)**
+
+PENDING --> PAID : Thanh toán thành công (VNPay callback)
+PENDING --> PAYMENT_FAILED : Thất bại / Hết hạn thanh toán
+PAYMENT_FAILED --> PAID : Khách bấm Thử thanh toán lại thành công
+PAYMENT_FAILED --> CANCELLED : Khách hủy đơn
+
+PAID --> PREPARING : Admin nhận đơn pha chế (PATCH /orders/:id/status)\nTrừ nguyên liệu kho BOM
+PREPARING --> READY : Admin pha xong (PATCH status=READY)
+READY --> COMPLETED : Bàn giao đồ uống cho khách (PATCH status=COMPLETED)
+
+PENDING --> CANCELLED : Khách tự hủy đơn (Hợp lệ)
+PAID --> CANCELLED : Khách hủy trước khi pha (Hợp lệ)
+COMPLETED --> [*]
+CANCELLED --> [*]
+
+note right of PREPARING
+  <b>Luật bảo vệ kho F&B:</b>
+  Từ PREPARING trở đi, hệ thống chặn đứng
+  mọi yêu cầu hủy đơn từ khách hàng
+  nhằm chống thất thoát nguyên liệu đã pha.
+end note
+
+@enduml

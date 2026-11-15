@@ -1,0 +1,89 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam shadowing false
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #B8860B
+skinparam ArrowColor #333333
+
+|#E6F2FF|Khách hàng (Customer)|
+start
+:Mở ứng dụng & Xem thực đơn 15 món;
+:Chọn đồ uống & Tùy chọn Size (S/M/L) + Topping;
+
+|#FFF2E6|Hệ thống BrewLite (Web + API)|
+:Kiểm tra định mức nguyên liệu kho (Check BOM);
+if (Đủ nguyên liệu pha chế?) then (Có)
+  :Thêm vào giỏ hàng DB (Persistent Cart);
+  :Tính phụ thu Size & giá Topping;
+else (Không đủ)
+  :Hiển thị cảnh báo hết nguyên liệu;
+  :Khóa thao tác tăng số lượng;
+  stop
+endif
+
+|Khách hàng (Customer)|
+:Tiến hành Đặt hàng (Checkout);
+if (Có mã giảm giá?) then (Có)
+  :Nhập mã ưu đãi (Ví dụ: WELCOME10);
+  |Hệ thống BrewLite (Web + API)|
+  :Xác thực mã (Hạn dùng, số tiền giảm);
+  :Áp dụng giảm trừ vào tổng thanh toán;
+endif
+
+|Khách hàng (Customer)|
+:Chọn phương thức thanh toán;
+if (Chọn Cổng VNPay?) then (VNPay)
+  |Hệ thống BrewLite (Web + API)|
+  :Tạo giao dịch & sinh link VNPay (HMAC-SHA512);
+  
+  |#E6FFE6|Cổng thanh toán VNPay Sandbox|
+  :Hiển thị cổng thanh toán giả lập;
+  :Khách xác thực OTP ngân hàng NCB;
+  :Xử lý trừ tiền tài khoản;
+  :Gửi kết quả thanh toán về hệ thống;
+  
+  |Hệ thống BrewLite (Web + API)|
+  :Kiểm tra chữ ký số SHA-512 hợp lệ;
+else (Ví Mock)
+  |Hệ thống BrewLite (Web + API)|
+  :Thực hiện Idempotent Transaction;
+endif
+
+:Tạo đơn hàng trạng thái PENDING -> PAID;
+:Tích lũy điểm Loyalty cho tài khoản;
+:Làm sạch giỏ hàng trong Database;
+
+|#FFE6E6|Quản trị viên kiêm Pha chế (Admin KDS)|
+:Nhận thông báo đơn hàng mới (PAID);
+
+fork
+  |Khách hàng (Customer)|
+  if (Khách muốn hủy đơn?) then (Hủy)
+    if (Trạng thái đơn trước PREPARING?) then (Hợp lệ)
+      |Hệ thống BrewLite (Web + API)|
+      :Cập nhật trạng thái CANCELLED;
+      :Hoàn tất hủy đơn;
+      stop
+    else (Không cho phép)
+      :Khóa quyền hủy (Chống thất thoát nguyên liệu);
+    endif
+  endif
+fork again
+  |Quản trị viên kiêm Pha chế (Admin KDS)|
+  :Admin / Nhân viên bấm Bắt đầu pha chế;
+  |Hệ thống BrewLite (Web + API)|
+  :Chuyển trạng thái sang PREPARING;
+  :Tự động xuất trừ nguyên liệu kho theo công thức BOM;
+  :Ghi nhận nhật ký biến động kho (InventoryLog);
+  
+  |Quản trị viên kiêm Pha chế (Admin KDS)|
+  :Pha chế xong -> Chuyển trạng thái READY;
+  :Giao ly nước cho khách;
+  :Chuyển trạng thái sang COMPLETED;
+end fork
+
+|Khách hàng (Customer)|
+:Nhận đồ uống hoàn tất;
+stop
+@enduml

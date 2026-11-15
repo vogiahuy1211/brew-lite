@@ -12,8 +12,8 @@
 | STT | Thành viên | Username GitHub | Vai trò chuyên trách | Số lượng Commits |
 | :---: | :--- | :--- | :--- | :---: |
 | **1** | **Võ Gia Huy** | `vogiahuy1211` | **Tech Lead & Backend Core** (Reviewer & Merger) | **18 commits**<br>*(10 feature + 8 merge)* |
-| **2** | **Phạm Thanh Hải** | `Naiiiiiiiiii` | **Thuần Backend Dev** (Auth, Orders, Payments, Hủy đơn) | **13 commits** |
-| **3** | **Thiều An** | `bizangvn-ops` | **Thuần Frontend Dev 2** (Giỏ hàng Zustand, Checkout, Orders UI) | **13 commits** |
+| **2** | **Nguyễn Ngọc Hải** | `Naiiiiiiiiii` | **Thuần Backend Dev** (Auth, Orders, Payments, Hủy đơn) | **13 commits** |
+| **3** | **Chương Thiệu Ân** | `bizangvn-ops` | **Thuần Frontend Dev 2** (Giỏ hàng Zustand, Checkout, Orders UI) | **13 commits** |
 | **4** | **Huỳnh Tín Đạt** | `tindat1442-cpu` | **Thuần Frontend Dev 1** (Menu UI, ProductCard, Detail Size/Topping) | **11 commits** |
 | **5** | **Hồ Xuân Lý** | `XuanLy147` | **Frontend Lead** (Session, Auth UI, Account/Footer, 89 Tests) | **11 commits** |
 | **TỔNG** | | | | **66 COMMITS** |

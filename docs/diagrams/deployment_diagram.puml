@@ -1,0 +1,56 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundcorner 6
+skinparam shadowing false
+
+skinparam node {
+    BackgroundColor #F1F5F9
+    BorderColor #475569
+}
+skinparam component {
+    BackgroundColor #FFFFFF
+    BorderColor #0284C7
+}
+skinparam database {
+    BackgroundColor #FEF3C7
+    BorderColor #D97706
+}
+skinparam cloud {
+    BackgroundColor #E0F2FE
+    BorderColor #0369A1
+}
+
+actor "👤 Khách hàng\n(Mobile Browser)" as Customer
+actor "👔 Quản trị viên kiêm Pha chế\n(Admin KDS Dashboard /admin)" as AdminStaff
+
+cloud "Vercel Edge Network" as Vercel {
+    component "Next.js 15 PWA\n(brew-lite.vercel.app)" as WebApp
+}
+
+cloud "VPS / Cloud Application Server" as CloudServer {
+    node "Docker Host (Linux Ubuntu)" {
+        component "Reverse Proxy\n(Nginx SSL :443)" as Nginx
+        component "NestJS REST API\n(Node.js Container :4000)" as ApiServer
+    }
+    
+    database "Managed PostgreSQL 16\n(Persistent DB Volume :5432)" as Postgres
+}
+
+cloud "External Services" as External {
+    component "VNPay Sandbox Gateway\n(Payment Service)" as VNPay
+}
+
+cloud "GitHub DevOps" as DevOps {
+    component "GitHub Actions Pipeline\n(CI: Lint, Jest Test, Build)" as CI
+}
+
+Customer --> WebApp : HTTPS / 443
+AdminStaff --> WebApp : HTTPS / 443 (/admin)
+WebApp --> Nginx : REST API (JSON)
+Nginx --> ApiServer : Reverse Proxy :4000
+ApiServer --> Postgres : Prisma ORM / TCP 5432
+ApiServer --> VNPay : HMAC-SHA512 Payment URL
+DevOps ..> CloudServer : CD Deploy Webhook
+
+@enduml

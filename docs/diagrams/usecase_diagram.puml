@@ -1,0 +1,87 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor "Khách hàng\n(Customer)" as Customer #DarkOrange
+actor "Quản trị viên kiêm Nhân viên\n(Admin / Staff)" as Admin #ForestGreen
+actor "Cổng thanh toán\n(VNPay Sandbox)" as Gateway #SteelBlue
+
+rectangle "Hệ Thống Đặt Cà Phê & Quản Lý F&B BrewLite" {
+  
+  package "Xác thực & Người dùng" {
+    usecase "Đăng ký tài khoản" as UC_Register
+    usecase "Đăng nhập JWT" as UC_Login
+    usecase "Xem điểm Loyalty" as UC_Loyalty
+  }
+
+  package "Đặt món & Giỏ hàng" {
+    usecase "Xem thực đơn 15 món" as UC_ViewMenu
+    usecase "Tùy chọn Size & Topping" as UC_Customize
+    usecase "Quản lý giỏ hàng (DB Cart)" as UC_ManageCart
+    usecase "Áp dụng mã giảm giá" as UC_ApplyPromo
+    usecase "Tạo đơn hàng (Checkout)" as UC_CreateOrder
+  }
+
+  package "Thanh toán & Đơn hàng" {
+    usecase "Thanh toán Cổng VNPay" as UC_PayVNPay
+    usecase "Thanh toán Ví Mock" as UC_PayMock
+    usecase "Theo dõi trạng thái đơn" as UC_TrackOrder
+    usecase "Hủy đơn hàng (Trước pha chế)" as UC_CancelOrder
+  }
+
+  package "Vận hành Quầy & Pha chế (KDS)" {
+    usecase "Tiếp nhận đơn (PAID)" as UC_ReceiveOrder
+    usecase "Bắt đầu pha chế (PREPARING)" as UC_StartPrep
+    usecase "Báo hoàn tất (READY)" as UC_ReadyOrder
+    usecase "Giao nước cho khách (COMPLETED)" as UC_DeliverOrder
+  }
+
+  package "Quản trị Quán & Kho (/admin)" {
+    usecase "Giám sát tồn kho nguyên liệu" as UC_MonitorStock
+    usecase "Nhập thêm kho (Restock)" as UC_Restock
+    usecase "Quản lý công thức định mức (BOM)" as UC_ManageBOM
+    usecase "Quản lý mã giảm giá (Promotions)" as UC_ManagePromos
+    usecase "Xem nhật ký biến động kho (Audit Logs)" as UC_ViewLogs
+  }
+}
+
+' Customer relations
+Customer --> UC_Register
+Customer --> UC_Login
+Customer --> UC_Loyalty
+Customer --> UC_ViewMenu
+Customer --> UC_Customize
+Customer --> UC_ManageCart
+Customer --> UC_ApplyPromo
+Customer --> UC_CreateOrder
+Customer --> UC_PayVNPay
+Customer --> UC_PayMock
+Customer --> UC_TrackOrder
+Customer --> UC_CancelOrder
+
+UC_Customize ..> UC_ViewMenu : <<extend>>
+UC_ApplyPromo ..> UC_CreateOrder : <<extend>>
+UC_CreateOrder ..> UC_ManageCart : <<include>>
+UC_PayVNPay ..> UC_CreateOrder : <<include>>
+UC_PayMock ..> UC_CreateOrder : <<include>>
+
+' Payment Gateway relations
+Gateway --> UC_PayVNPay
+
+' Admin / Staff relations (Quản trị viên kiêm Nhân viên vận hành toàn bộ)
+Admin --> UC_ReceiveOrder
+Admin --> UC_StartPrep
+Admin --> UC_ReadyOrder
+Admin --> UC_DeliverOrder
+Admin --> UC_MonitorStock
+Admin --> UC_Restock
+Admin --> UC_ManageBOM
+Admin --> UC_ManagePromos
+Admin --> UC_ViewLogs
+
+@enduml
