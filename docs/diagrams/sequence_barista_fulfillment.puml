@@ -1,0 +1,75 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam responseMessageBelowArrow true
+autonumber
+
+actor "Khách hàng\n(Customer)" as Cust #DarkOrange
+actor "Quản trị viên kiêm Pha chế\n(Admin / Staff)" as AdminStaff #ForestGreen
+boundary "Màn hình KDS Quản trị\n(/admin)" as UI #E1F5FE
+control "Orders Controller & Service\n(NestJS)" as OrderSvc #FFF8E1
+database "PostgreSQL DB\n(Prisma ORM)" as DB #E8F5E9
+
+== Giai đoạn 1: Quản trị viên / Nhân viên Tiếp nhận Pha chế ==
+UI -> OrderSvc : GET /api/orders (Polling định kỳ)
+activate OrderSvc
+OrderSvc -> DB : SELECT * FROM Orders WHERE status IN ('PAID', 'PREPARING')
+DB --> OrderSvc : Danh sách đơn hàng
+OrderSvc --> UI : Hiển thị đơn PAID tại Quầy pha chế
+deactivate OrderSvc
+
+AdminStaff -> UI : Nhấn "Bắt đầu pha chế"
+activate UI
+UI -> OrderSvc : PATCH /api/orders/:id/status\n{ nextStatus: 'PREPARING' }
+activate OrderSvc
+
+OrderSvc -> DB : SELECT status FROM Orders WHERE id = orderId
+DB --> OrderSvc : status = 'PAID'
+OrderSvc -> OrderSvc : assertTransition('PAID', 'PREPARING') -> HỢP LỆ
+OrderSvc -> DB : UPDATE Orders SET status = 'PREPARING'
+OrderSvc --> UI : 200 OK { id, status: 'PREPARING' }
+deactivate OrderSvc
+UI --> AdminStaff : Cập nhật huy hiệu: [Đang pha chế]
+deactivate UI
+
+== Giai đoạn 2: Quy tắc nghiệp vụ F&B - Chặn khách hủy đơn ==
+Cust -> UI : Khách bấm "Hủy đơn hàng" tại /orders/[id]
+activate UI
+UI -> OrderSvc : PATCH /api/orders/:id/status\n{ nextStatus: 'CANCELLED' } (Role: CUSTOMER)
+activate OrderSvc
+
+OrderSvc -> DB : SELECT status, user_id FROM Orders WHERE id = orderId
+DB --> OrderSvc : status = 'PREPARING'
+OrderSvc -> OrderSvc : Kiểm tra trạng thái >= PREPARING?\n=> PHÁT HIỆN ĐƠN ĐANG PHA CHẾ
+OrderSvc --> UI : 400 Bad Request:\n"Đơn hàng đang hoặc đã được pha chế, không thể hủy đơn!"
+deactivate OrderSvc
+UI --> Cust : Cảnh báo: "Không thể hủy đơn lúc này (Bảo vệ nguyên liệu đã xuất kho)"
+deactivate UI
+
+== Giai đoạn 3: Hoàn tất Pha chế & Bàn giao Khách ==
+AdminStaff -> UI : Pha chế xong -> Bấm "Báo hoàn tất"
+activate UI
+UI -> OrderSvc : PATCH /api/orders/:id/status\n{ nextStatus: 'READY' }
+activate OrderSvc
+OrderSvc -> OrderSvc : assertTransition('PREPARING', 'READY') -> HỢP LỆ
+OrderSvc -> DB : UPDATE Orders SET status = 'READY'
+OrderSvc --> UI : 200 OK { status: 'READY' }
+deactivate OrderSvc
+UI --> AdminStaff : Trạng thái [Mời lấy nước]
+UI --> Cust : Thông báo đơn sẵn sàng nhận tại quầy
+deactivate UI
+
+AdminStaff -> UI : Trao ly nước cho khách -> Bấm "Hoàn tất"
+activate UI
+UI -> OrderSvc : PATCH /api/orders/:id/status\n{ nextStatus: 'COMPLETED' }
+activate OrderSvc
+OrderSvc -> OrderSvc : assertTransition('READY', 'COMPLETED') -> HỢP LỆ
+OrderSvc -> DB : UPDATE Orders SET status = 'COMPLETED'
+OrderSvc --> UI : 200 OK (Đơn hàng đóng)
+deactivate OrderSvc
+UI --> AdminStaff : Đơn chuyển vào lịch sử hoàn thành
+deactivate UI
+
+@enduml

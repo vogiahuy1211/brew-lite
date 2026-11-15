@@ -84,7 +84,13 @@ export default function CheckoutPage() {
     return () => { active = false; };
   }, []);
 
-  if (!mounted || (cartLoading && items.length === 0)) return null;
+  if (!mounted || (cartLoading && items.length === 0)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (Array.isArray(items) && items.length === 0 && !submissionLocked) {
     return (

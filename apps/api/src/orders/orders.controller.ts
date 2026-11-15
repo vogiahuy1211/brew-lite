@@ -1,8 +1,8 @@
-import { Controller, Post, Body, Get, Param, UseGuards, Request, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, UseGuards, Request, Patch, ForbiddenException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { order_status } from '@prisma/client';
+import { order_status, user_role } from '@prisma/client';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
@@ -15,7 +15,10 @@ export class OrdersController {
   }
 
   @Get()
-  getAllOrders() {
+  getAllOrders(@Request() req: any) {
+    if (req.user.role !== user_role.ADMIN && req.user.role !== user_role.STAFF) {
+      throw new ForbiddenException('Chỉ quản trị viên hoặc nhân viên mới có quyền xem toàn bộ danh sách đơn hàng');
+    }
     return this.ordersService.findAllOrders();
   }
 

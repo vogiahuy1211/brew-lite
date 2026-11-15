@@ -51,6 +51,15 @@ import {
 } from '@/services/api';
 import { logout, useSession } from '@/services/session';
 
+const ALLOWED_ADMIN_TRANSITIONS: Record<string, string[]> = {
+  PENDING: ['PAID', 'CANCELLED'],
+  PAID: ['PREPARING', 'CANCELLED'],
+  PREPARING: ['READY'],
+  READY: ['COMPLETED'],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const sessionUser = useSession((state) => state.user);
@@ -937,7 +946,7 @@ const filteredPromotions = useMemo(() => {
                               Hoàn tất đơn
                             </button>
                           )}
-                          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+                          {(order.status === 'PENDING' || order.status === 'PAID') && (
                             <button
                               disabled={isUpdating}
                               onClick={() => handleCancelOrder(order.id)}
@@ -952,17 +961,17 @@ const filteredPromotions = useMemo(() => {
                         <div className="flex items-center gap-1">
                           <label className="text-[10px] text-gray-400">Đổi:</label>
                           <select
-                            disabled={isUpdating}
+                            disabled={isUpdating || (ALLOWED_ADMIN_TRANSITIONS[order.status]?.length ?? 0) === 0}
                             value={order.status}
                             onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
                             className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 font-semibold text-gray-700 focus:outline-none"
                           >
-                            <option value="PENDING">PENDING</option>
-                            <option value="PAID">PAID</option>
-                            <option value="PREPARING">PREPARING</option>
-                            <option value="READY">READY</option>
-                            <option value="COMPLETED">COMPLETED</option>
-                            <option value="CANCELLED">CANCELLED</option>
+                            <option value={order.status}>{order.status}</option>
+                            {(ALLOWED_ADMIN_TRANSITIONS[order.status] || []).map((st) => (
+                              <option key={st} value={st}>
+                                → {st}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>

@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateIngredientDto, RestockIngredientDto } from './dto/inventory.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 
 @Controller('inventory')
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 

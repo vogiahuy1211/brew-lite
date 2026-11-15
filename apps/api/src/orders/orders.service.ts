@@ -460,31 +460,10 @@ export class OrdersService {
       throw new NotFoundException('Đơn hàng không tồn tại');
     }
 
-    const isAdmin = user?.role === user_role.ADMIN;
+    const isStaffOrAdmin = user?.role === user_role.ADMIN || user?.role === user_role.STAFF;
 
-    // 1. Kiểm tra quyền của khách hàng (hoặc user không phải Admin)
-    if (user && !isAdmin) {
-      if (order.user_id !== user.id) {
-        throw new ForbiddenException('Bạn không có quyền thao tác trên đơn hàng này');
-      }
-
-      // Khách hàng hủy đơn: từ trạng thái PREPARING trở về sau là không cho khách hàng hủy đơn nữa
-      if (nextStatus === order_status.CANCELLED) {
-        if (
-          order.status === order_status.PREPARING ||
-          order.status === order_status.READY ||
-          order.status === order_status.COMPLETED ||
-          order.status === order_status.CANCELLED
-        ) {
-          throw new BadRequestException(
-            'Đơn hàng đang hoặc đã được pha chế (từ PREPARING trở đi), không thể hủy đơn lúc này!',
-          );
-        }
-      }
-    }
-
-    // 2. Chuyển đổi trạng thái (State Machine):
-    if (isAdmin && nextStatus === order_status.CANCELLED) {
+    // 1. Chuyển đổi trạng thái (State Machine): kiểm tra tính hợp lệ vòng đời đơn hàng
+    if (isStaffOrAdmin && nextStatus === order_status.CANCELLED) {
       if (order.status === order_status.COMPLETED || order.status === order_status.CANCELLED) {
         throw new BadRequestException('Không thể hủy đơn hàng đã hoàn tất hoặc đã hủy!');
       }
@@ -492,17 +471,104 @@ export class OrdersService {
       assertTransition(order.status, nextStatus);
     }
 
-    // 3. Thực hiện chuyển trạng thái và CHỈ trừ nguyên liệu khi chuyển sang PREPARING (đang pha)
+    // 2. Kiểm tra quyền của khách hàng (user không phải Admin / Staff)
+    if (user && !isStaffOrAdmin) {
+      if (order.user_id !== user.id) {
+        throw new ForbiddenException('Bạn không có quyền thao tác trên đơn hàng này');
+      }
+
+      // Khách hàng CHỈ ĐƯỢC PHÉP HỦY ĐƠN (CANCELLED). Không được phép tự ý chuyển sang PREPARING, READY, COMPLETED
+      if (nextStatus !== order_status.CANCELLED) {
+        throw new ForbiddenException('Khách hàng chỉ có quyền yêu cầu hủy đơn hàng (CANCELLED)');
+      }
+
+      // Khách hàng hủy đơn: từ trạng thái PREPARING trở về sau là không cho khách hàng hủy đơn nữa
+      if (
+        order.status === order_status.PREPARING ||
+        order.status === order_status.READY ||
+        order.status === order_status.COMPLETED ||
+        order.status === order_status.CANCELLED
+      ) {
+        throw new BadRequestException(
+          'Đơn hàng đang hoặc đã được pha chế (từ PREPARING trở đi), không thể hủy đơn lúc này!',
+        );
+      }
+    }
+
+    // 3. Thực hiện chuyển trạng thái và xử lý trừ kho hoặc hoàn kho trong Transaction
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.orders.update({
         where: { id: orderId },
         data: { status: nextStatus },
       });
 
-      // Nếu chuyển sang trạng thái PREPARING và trước đó chưa ở PREPARING
+      // 3.1 Nếu chuyển sang trạng thái PREPARING và trước đó chưa ở PREPARING -> Trừ nguyên liệu kho
       if (nextStatus === order_status.PREPARING && order.status !== order_status.PREPARING) {
         this.logger.log(`Đơn hàng #${orderId} chuyển sang PREPARING -> Bắt đầu trừ nguyên liệu kho`);
         await this.inventoryService.deductOrderIngredients(tx, orderId);
+      }
+
+      // 3.2 XỬ LÝ HỦY ĐƠN (CANCELLED): Hoàn trả tồn kho sản phẩm & nguyên vật liệu
+      if (nextStatus === order_status.CANCELLED) {
+        const orderToCancel = await tx.orders.findUnique({
+          where: { id: orderId },
+          include: {
+            OrderItems: true,
+            Payments: true,
+          },
+        });
+
+        if (orderToCancel && orderToCancel.OrderItems) {
+          // Hoàn trả tồn kho thành phẩm (Products.stock)
+          for (const item of orderToCancel.OrderItems) {
+            await tx.products.update({
+              where: { id: item.product_id },
+              data: {
+                stock: { increment: item.qty },
+                version: { increment: 1 },
+              },
+            });
+          }
+
+          // Nếu đơn đã ở trạng thái PREPARING (đã trừ nguyên liệu) thì hoàn trả lại nguyên liệu vào kho
+          if (order.status === order_status.PREPARING) {
+            for (const item of orderToCancel.OrderItems) {
+              const productRecipes = await tx.recipeItems.findMany({
+                where: {
+                  product_id: item.product_id,
+                  OR: [{ size: item.size }, { size: null }],
+                },
+              });
+
+              for (const r of productRecipes) {
+                const returnAmount = Number(r.amount_needed) * item.qty;
+                const ing = await tx.ingredients.findUnique({ where: { id: r.ingredient_id } });
+                if (ing) {
+                  const newStock = Number(ing.stock_quantity) + returnAmount;
+                  await tx.ingredients.update({
+                    where: { id: r.ingredient_id },
+                    data: { stock_quantity: newStock },
+                  });
+
+                  await tx.inventoryLogs.create({
+                    data: {
+                      ingredient_id: r.ingredient_id,
+                      change_amount: returnAmount,
+                      balance_after: newStock,
+                      reason: 'ORDER_CANCEL_RESTOCK',
+                      order_id: orderId,
+                    },
+                  });
+                }
+              }
+            }
+          }
+
+          const hadSuccessPayment = orderToCancel.Payments?.some((p: any) => p.status === 'SUCCESS');
+          this.logger.log(
+            `[HỦY ĐƠN THÀNH CÔNG] Đơn hàng #${orderId} đã được hủy. Tồn kho hoàn trả. Ghi nhận hoàn tiền: ${hadSuccessPayment ? 'CÓ (REFUND_PENDING)' : 'KHÔNG'}`,
+          );
+        }
       }
 
       return updated;

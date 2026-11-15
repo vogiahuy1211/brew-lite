@@ -1,0 +1,169 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 6
+
+skinparam class {
+    BackgroundColor #F8FAFC
+    BorderColor #64748B
+    ArrowColor #334155
+}
+
+enum UserRole {
+    CUSTOMER
+    STAFF
+    ADMIN
+}
+
+enum OrderStatus {
+    PENDING
+    PAID
+    PAYMENT_FAILED
+    PREPARING
+    READY
+    COMPLETED
+    CANCELLED
+}
+
+enum PaymentMethod {
+    WALLET
+    CARD
+    VNPAY
+}
+
+enum PaymentStatus {
+    SUCCESS
+    FAILED
+}
+
+enum ItemSize {
+    S
+    M
+    L
+}
+
+class User {
+    +UUID id
+    +String email
+    +String password_hash
+    +String full_name
+    +String phone
+    +UserRole role
+    +Integer loyalty_points
+    +DateTime created_at
+}
+
+class Product {
+    +UUID id
+    +String name
+    +String category
+    +Decimal base_price
+    +String description
+    +Boolean is_active
+}
+
+class Order {
+    +UUID id
+    +UUID user_id
+    +String order_number
+    +OrderStatus status
+    +Decimal total_amount
+    +Decimal discount_amount
+    +Decimal final_amount
+    +String idempotency_key
+    +DateTime created_at
+}
+
+class OrderItem {
+    +UUID id
+    +UUID order_id
+    +UUID product_id
+    +ItemSize size
+    +Integer quantity
+    +Decimal unit_price
+    +Decimal subtotal
+}
+
+class Payment {
+    +UUID id
+    +UUID order_id
+    +Decimal amount
+    +PaymentMethod method
+    +PaymentStatus status
+    +String transaction_id
+    +DateTime paid_at
+}
+
+class Promotion {
+    +UUID id
+    +String code
+    +String discount_type
+    +Decimal discount_value
+    +Decimal min_order_value
+    +Boolean is_active
+}
+
+class LoyaltyTransaction {
+    +UUID id
+    +UUID user_id
+    +UUID order_id
+    +Integer points_change
+    +String reason
+    +DateTime created_at
+}
+
+class Ingredient {
+    +UUID id
+    +String name
+    +String unit
+    +Decimal stock_quantity
+    +Decimal min_threshold
+}
+
+class RecipeItem {
+    +UUID id
+    +UUID product_id
+    +UUID ingredient_id
+    +ItemSize size
+    +Decimal quantity_required
+}
+
+class InventoryLog {
+    +UUID id
+    +UUID ingredient_id
+    +Decimal change_qty
+    +String reason
+    +DateTime created_at
+}
+
+class Cart {
+    +UUID id
+    +UUID user_id
+    +DateTime updated_at
+}
+
+class CartItem {
+    +UUID id
+    +UUID cart_id
+    +UUID product_id
+    +ItemSize size
+    +Integer quantity
+}
+
+' Relationships
+User "1" *-- "0..*" Order : places >
+Order "1" *-- "1..*" OrderItem : contains >
+Product "1" *-- "0..*" OrderItem : references <
+Order "1" -- "0..1" Payment : settled by >
+User "1" -- "0..1" Cart : owns >
+Cart "1" *-- "0..*" CartItem : holds >
+Product "1" *-- "0..*" CartItem : references <
+Product "1" *-- "1..*" RecipeItem : BOM formula >
+Ingredient "1" *-- "0..*" RecipeItem : consumed by <
+Ingredient "1" *-- "0..*" InventoryLog : tracks audit >
+User "1" *-- "0..*" LoyaltyTransaction : accumulates >
+Promotion "0..1" -- "0..*" Order : applies to >
+
+@enduml

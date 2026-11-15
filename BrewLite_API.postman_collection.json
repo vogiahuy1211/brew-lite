@@ -144,7 +144,7 @@
                   "pm.test('Trả về token đăng ký', function () {",
                   "    var res = pm.response.json();",
                   "    pm.expect(res).to.have.property('access_token');",
-                  "    pm.collectionVariables.set('registerToken', res.access_token);",
+                  "    // pm.collectionVariables.set('registerToken', res.access_token);",
                   "});"
                 ]
               }
@@ -230,7 +230,7 @@
                   "});",
                   "var res = pm.response.json();",
                   "if (res.access_token) {",
-                  "    pm.collectionVariables.set('token', res.access_token);",
+                  "    // pm.collectionVariables.set('token', res.access_token);",
                   "    console.log('Customer token auto-saved');",
                   "}"
                 ]
@@ -274,7 +274,7 @@
                   "});",
                   "var res = pm.response.json();",
                   "if (res.access_token) {",
-                  "    pm.collectionVariables.set('adminToken', res.access_token);",
+                  "    // pm.collectionVariables.set('adminToken', res.access_token);",
                   "    console.log('Admin token auto-saved');",
                   "}"
                 ]

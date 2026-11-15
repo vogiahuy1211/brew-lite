@@ -1,0 +1,84 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam responseMessageBelowArrow true
+autonumber
+
+actor "Khách hàng\n(Customer)" as Cust #DarkOrange
+boundary "BrewLite Web\n(Next.js App)" as Web #E1F5FE
+control "Orders Service\n(NestJS API)" as OrderSvc #FFF8E1
+control "Payments Service\n(NestJS API)" as PaySvc #EDE7F6
+database "Database\n(PostgreSQL / Prisma)" as DB #E8F5E9
+boundary "VNPay Gateway\n(Sandbox)" as VNPay #FCE4EC
+
+== 1. Khởi tạo Đơn hàng (Checkout) ==
+Cust -> Web : Nhấn "Tiến hành Đặt hàng"
+activate Web
+Web -> OrderSvc : POST /api/orders\n{ items, promoCode }
+activate OrderSvc
+
+OrderSvc -> DB : BEGIN TRANSACTION
+activate DB
+OrderSvc -> DB : Kiểm tra tồn kho & định mức BOM (RecipeItems)
+OrderSvc -> DB : Giảm stock sản phẩm (Optimistic Locking: WHERE version=v)
+OrderSvc -> DB : Xác thực mã giảm giá (Promotions)
+OrderSvc -> DB : INSERT Orders (status: 'PENDING')
+OrderSvc -> DB : INSERT OrderItems & OrderItemToppings
+OrderSvc -> DB : COMMIT TRANSACTION
+deactivate DB
+
+OrderSvc --> Web : 201 Created { orderId, finalAmount }
+deactivate OrderSvc
+
+== 2. Khởi tạo Giao dịch Cổng VNPay ==
+Web -> PaySvc : POST /api/payments/vnpay/create-url\n{ orderId }
+activate PaySvc
+
+PaySvc -> DB : SELECT Orders WHERE id = orderId
+activate DB
+DB --> PaySvc : Thông tin đơn (finalAmount, status: PENDING)
+deactivate DB
+
+PaySvc -> PaySvc : Định dạng tham số VNPay (vnp_TxnRef, vnp_Amount...)\nSắp xếp Alphabet & Ký số HMAC-SHA512
+PaySvc --> Web : { paymentUrl: "https://sandbox.vnpayment.vn/..." }
+deactivate PaySvc
+
+Web -> Cust : Redirect trình duyệt sang Cổng VNPay
+deactivate Web
+
+== 3. Xác thực Thanh toán tại VNPay ==
+activate VNPay
+Cust -> VNPay : Nhập số thẻ NCB & Mã xác thực OTP
+VNPay -> VNPay : Kiểm tra số dư & Khớp lệnh giao dịch
+VNPay --> Cust : Redirect về Web: /orders/vnpay-return?\nvnp_ResponseCode=00&vnp_SecureHash=...
+deactivate VNPay
+
+== 4. Xác minh Chữ ký & Cập nhật Trạng thái (Callback) ==
+activate Web
+Web -> PaySvc : GET /api/payments/vnpay/callback ? queryParams
+activate PaySvc
+
+PaySvc -> PaySvc : Tách vnp_SecureHash & Tính hash kiểm tra SHA-512
+alt Chữ ký hợp lệ & vnp_ResponseCode == '00'
+  PaySvc -> DB : BEGIN TRANSACTION
+  activate DB
+  PaySvc -> DB : INSERT Payments (idempotency_key, method: CARD, SUCCESS)
+  PaySvc -> DB : UPDATE Orders SET status = 'PAID'
+  PaySvc -> DB : deductOrderIngredients()\n[Tự động trừ kho nguyên liệu theo BOM]
+  PaySvc -> DB : UPDATE Users SET loyalty_points += Math.floor(amount/10000)
+  PaySvc -> DB : COMMIT TRANSACTION
+  deactivate DB
+  PaySvc --> Web : { success: true, orderId, message: "Thanh toán thành công" }
+else Chữ ký sai hoặc Giao dịch lỗi
+  PaySvc -> DB : UPDATE Orders SET status = 'PAYMENT_FAILED'
+  PaySvc --> Web : { success: false, message: "Giao dịch thất bại / Bị hủy" }
+end
+deactivate PaySvc
+
+Web -> DB : DELETE FROM Carts (Làm sạch giỏ hàng)
+Web --> Cust : Chuyển hướng đến màn hình xác nhận /orders/[id]
+deactivate Web
+
+@enduml

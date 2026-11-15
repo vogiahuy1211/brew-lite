@@ -1,4 +1,4 @@
-import { IsUUID, IsEnum, IsInt, Min, IsArray, ValidateNested, IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsUUID, IsEnum, IsInt, Min, Max, IsArray, ValidateNested, IsOptional, IsString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { item_size } from '@prisma/client';
 
@@ -11,6 +11,7 @@ export class OrderItemDto {
 
   @IsInt({ message: 'Số lượng phải là số nguyên' })
   @Min(1, { message: 'Số lượng tối thiểu là 1' })
+  @Max(50, { message: 'Số lượng tối đa cho mỗi món là 50 ly trong một lần đặt' })
   qty: number;
 
   @IsArray()
